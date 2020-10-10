@@ -1,0 +1,4 @@
+(executable
+  (name comminfer)
+  (libraries core)
+  (preprocess (pps ppx_jane)))
