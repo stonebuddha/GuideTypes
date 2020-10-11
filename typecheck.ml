@@ -361,8 +361,8 @@ let tycheck_cmd sty_ctxt psig_ctxt =
       let%bind tyv1 = forward ctxt cmd1 in
       let%bind sess' = backward (Map.set ctxt ~key:var_name.txt ~data:tyv1) sess cmd2 in
       backward ctxt sess' cmd1
-    | M_sample_recv (exp, channel_name) ->
-      let%bind tyv = tycheck_exp ctxt exp in
+    | M_sample_recv (_, channel_name) ->
+      let%bind tyv = forward ctxt cmd in
       begin
         match Map.find sess channel_name.txt with
         | None -> Error (Type_error ("unknown channel " ^ channel_name.txt, channel_name.loc))
@@ -371,8 +371,8 @@ let tycheck_cmd sty_ctxt psig_ctxt =
         | Some (`Right, sty) ->
           Ok (Map.set sess ~key:channel_name.txt ~data:(`Right, Styv_imply (tyv, sty)))
       end
-    | M_sample_send (exp, channel_name) ->
-      let%bind tyv = tycheck_exp ctxt exp in
+    | M_sample_send (_, channel_name) ->
+      let%bind tyv = forward ctxt cmd in
       begin
         match Map.find sess channel_name.txt with
         | None -> Error (Type_error ("unknown channel " ^ channel_name.txt, channel_name.loc))
@@ -435,7 +435,9 @@ let tycheck_cmd sty_ctxt psig_ctxt =
                       match Map.find sty_ctxt type_id with
                       | None -> raise (Type_error ("unknown type name " ^ type_id, cmd.cmd_loc))
                       | Some sty_def ->
-                        Some (dir, (continualize sty sty_def))
+                        match sty with
+                        | Styv_one -> Some (dir, Styv_var type_id)
+                        | _ -> Some (dir, (continualize sty sty_def))
                   )
               )
       end

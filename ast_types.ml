@@ -18,7 +18,7 @@ type prim_ty =
   | Pty_real
   | Pty_fnat of int
   | Pty_nat
-[@@deriving equal]
+[@@deriving sexp, equal]
 
 type base_ty = {
   bty_desc: base_ty_desc;
@@ -34,7 +34,7 @@ type base_tyv =
   | Btyv_prim of prim_ty
   | Btyv_arrow of base_tyv * base_tyv
   | Btyv_dist of base_tyv
-[@@deriving equal]
+[@@deriving sexp, equal]
 
 type binop =
   | Bop_add
@@ -121,7 +121,7 @@ type sess_tyv =
   | Styv_ichoice of sess_tyv * sess_tyv
   | Styv_echoice of sess_tyv * sess_tyv
   | Styv_var of string
-[@@deriving equal]
+[@@deriving sexp, equal]
 
 type proc_sig = {
   psig_param_tys: (variable_id * base_ty) list;
