@@ -10,21 +10,31 @@ type procedure_id = string loc
 type channel_id = string loc
 type type_id = string loc
 
+type prim_ty =
+  | Pty_unit
+  | Pty_bool
+  | Pty_ureal
+  | Pty_preal
+  | Pty_real
+  | Pty_fnat of int
+  | Pty_nat
+[@@deriving equal]
+
 type base_ty = {
   bty_desc: base_ty_desc;
   bty_loc: Location.t;
 }
 
 and base_ty_desc =
-  | Bty_unit
-  | Bty_bool
-  | Bty_ureal
-  | Bty_preal
-  | Bty_real
-  | Bty_fnat of int
-  | Bty_nat
+  | Bty_prim of prim_ty
   | Bty_arrow of base_ty * base_ty
   | Bty_dist of base_ty
+
+type base_tyv =
+  | Btyv_prim of prim_ty
+  | Btyv_arrow of base_tyv * base_tyv
+  | Btyv_dist of base_tyv
+[@@deriving equal]
 
 type binop =
   | Bop_add
@@ -85,7 +95,7 @@ type cmd = {
 and cmd_desc =
   | M_ret of exp
   | M_bnd of cmd * variable_id * cmd
-  | M_call of procedure_id * exp
+  | M_call of procedure_id * exp list
   | M_sample_recv of exp * channel_id
   | M_sample_send of exp * channel_id
   | M_branch_recv of cmd * cmd * channel_id
@@ -104,6 +114,15 @@ and sess_ty_desc =
   | Sty_echoice of sess_ty * sess_ty
   | Sty_var of type_id
 
+type sess_tyv =
+  | Styv_one
+  | Styv_conj of base_tyv * sess_tyv
+  | Styv_imply of base_tyv * sess_tyv
+  | Styv_ichoice of sess_tyv * sess_tyv
+  | Styv_echoice of sess_tyv * sess_tyv
+  | Styv_var of string
+[@@deriving equal]
+
 type proc_sig = {
   psig_param_tys: (variable_id * base_ty) list;
   psig_ret_ty: base_ty;
@@ -111,19 +130,18 @@ type proc_sig = {
   psig_sess_right: (channel_id * type_id) option;
 }
 
+type proc_sig_val = {
+  psigv_param_tys: (string * base_tyv) list;
+  psigv_ret_ty: base_tyv;
+  psigv_sess_left: (string * string) option;
+  psigv_sess_right: (string * string) option;
+}
+
 type proc = {
   proc_sig: proc_sig;
   proc_body: cmd;
   proc_loc: Location.t;
 }
-
-type sess_context = sess_ty String.Map.t
-
-type base_context = base_ty String.Map.t
-
-type proc_context = proc_sig String.Map.t
-
-type proc_environment = proc String.Map.t
 
 type sess_or_proc =
   | Top_sess of type_id * sess_ty

@@ -14,8 +14,8 @@ let parse_file filename =
   In_channel.with_file filename ~f:parse_channel
 
 let cmd_only_parse =
-  let open Command.Let_syntax in
   Command.basic ~summary:"only parse" (
+    let open Command.Let_syntax in
     let%map_open filename = anon ("filename" %: Filename.arg_type)
     in
     fun () ->
@@ -27,10 +27,28 @@ let cmd_only_parse =
       report_error result
   )
 
+let cmd_type_check =
+  Command.basic ~summary:"type check" (
+    let open Command.Let_syntax in
+    let%map_open filename = anon ("filename" %: Filename.arg_type)
+    in
+    fun () ->
+      let result =
+        let open Result.Let_syntax in
+        let%bind prog = parse_file filename in
+        let%bind () = Typecheck.tycheck_prog prog in
+        Ok ()
+      in
+      report_error result
+  )
+
 let cmd_route =
   Command.group ~summary:"CommInfer" [
     ("only-parse", cmd_only_parse);
+    ("type-check", cmd_type_check);
   ]
 
 let () =
   Command.run ~version:"0.1.0" ~build_info:"CMU" cmd_route
+
+let tc = Typecheck.tycheck_exp

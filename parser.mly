@@ -162,24 +162,28 @@ base_prim_ty:
   | LPAREN; bty = base_ty; RPAREN
     { bty }
   | mkbty(
-      UNIT
-      { Bty_unit }
-    | BOOL
-      { Bty_bool }
-    | UREAL
-      { Bty_ureal }
-    | PREAL
-      { Bty_preal }
-    | REAL
-      { Bty_real }
-    | NAT; LBRACKET; n = INTV; RBRACKET
-      { Bty_fnat n }
-    | NAT
-      { Bty_nat }
+      pty = prim_ty
+      { Bty_prim pty }
     | bty = base_prim_ty; DIST
       { Bty_dist bty }
     )
     { $1 }
+
+prim_ty:
+  | UNIT
+    { Pty_unit }
+  | BOOL
+    { Pty_bool }
+  | UREAL
+    { Pty_ureal }
+  | PREAL
+    { Pty_preal }
+  | REAL
+    { Pty_real }
+  | NAT; LBRACKET; n = INTV; RBRACKET
+    { Pty_fnat n }
+  | NAT
+    { Pty_nat }
 
 exp:
   | exp = arith_exp
@@ -287,8 +291,8 @@ prim_cmd:
       { M_ret exp }
     | var_name = mkloc(LIDENT); LESSMINUS; cmd1 = cmd; SEMI; cmd2 = cmd
       { M_bnd (cmd1, var_name, cmd2) }
-    | proc_name = mkloc(UIDENT); LPAREN; exp = exp; RPAREN
-      { M_call (proc_name, exp) }
+    | proc_name = mkloc(UIDENT); LPAREN; exps = separated_list(SEMI, exp); RPAREN
+      { M_call (proc_name, exps) }
     | SAMPLE; LBRACE; channel_name = mkloc(LIDENT); RBRACE; LPAREN; exp = exp; RPAREN
       { M_sample_send (exp, channel_name) }
     | OBSERVE; LBRACE; channel_name = mkloc(LIDENT); RBRACE; LPAREN; exp = exp; RPAREN
