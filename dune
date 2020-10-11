@@ -1,4 +1,7 @@
+(ocamllex lexer)
+(menhir (flags --table) (modules parser))
+
 (executable
   (name comminfer)
-  (libraries core)
+  (libraries core compiler-libs.common menhirLib)
   (preprocess (pps ppx_jane)))
