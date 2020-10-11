@@ -34,7 +34,10 @@ let mkcmd ~loc cmd_desc = {
 %token AND
 %token ASTERISK
 %token BAR
+%token BER
+%token BETA
 %token BOOL
+%token CAT
 %token COLON
 %token DIST
 %token DOLLAR
@@ -46,6 +49,8 @@ let mkcmd ~loc cmd_desc = {
 %token FALSE
 %token <float> FLOATV
 %token FN
+%token GAMMA
+%token GEO
 %token GREATER
 %token GREATEREQUAL
 %token IF
@@ -64,6 +69,7 @@ let mkcmd ~loc cmd_desc = {
 %token MINUSGREATER
 %token MINUSO
 %token NAT
+%token NORMAL
 %token OBSERVE
 %token OR
 %token PLUS
@@ -81,6 +87,7 @@ let mkcmd ~loc cmd_desc = {
 %token TRUE
 %token TYPE
 %token <string> UIDENT
+%token UNIF
 %token UNIT
 %token UREAL
 
@@ -247,8 +254,26 @@ prim_exp:
       { E_real r }
     | LET; var_name = mkloc(LIDENT); EQUAL; exp1 = exp; IN; exp2 = exp; END
       { E_let (exp1, var_name, exp2) }
+    | dist = dist(exp)
+      { E_dist dist }
     )
     { $1 }
+
+dist(RHS):
+  | BER; LPAREN; arg = RHS; RPAREN
+    { D_ber arg }
+  | UNIF
+    { D_unif }
+  | BETA; LPAREN; arg1 = RHS; SEMI; arg2 = RHS; RPAREN
+    { D_beta (arg1, arg2) }
+  | GAMMA; LPAREN; arg1 = RHS; SEMI; arg2 = RHS; RPAREN
+    { D_gamma (arg1, arg2) }
+  | NORMAL; LPAREN; arg1 = RHS; SEMI; arg2 = RHS; RPAREN
+    { D_normal (arg1, arg2) }
+  | CAT; LPAREN; args = separated_nonempty_list(SEMI, RHS); RPAREN
+    { D_cat args }
+  | GEO; LPAREN; arg = RHS; RPAREN
+    { D_geo arg }
 
 cmd:
   | cmd = prim_cmd

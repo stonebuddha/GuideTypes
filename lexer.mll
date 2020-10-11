@@ -61,6 +61,14 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   (")", RPAREN);
   (";", SEMI);
   ("/", SLASH);
+
+  ("BER", BER);
+  ("UNIF", UNIF);
+  ("BETA", BETA);
+  ("GAMMA", GAMMA);
+  ("NORMAL", NORMAL);
+  ("CAT", CAT);
+  ("GEO", GEO);
 ]
 
 (* Update the current location with file name and line number. *)
@@ -127,7 +135,9 @@ rule token = parse
       | Some kwd -> kwd
       | None -> LIDENT name }
   | uppercase identchar* as name
-    { UIDENT name }
+    { match Hashtbl.find keyword_table name with
+      | Some kwd -> kwd
+      | None -> UIDENT name }
   | int_literal as lit
     { INTV (Int.of_string lit) }
   | (float_literal | hex_float_literal) as lit
