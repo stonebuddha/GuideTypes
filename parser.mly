@@ -145,7 +145,9 @@ sess_ty:
     | AMPERSAND; LBRACE; sty1 = sess_ty; BAR; sty2 = sess_ty; RBRACE
       { Sty_echoice (sty1, sty2) }
     | sty_name = mkloc(UIDENT)
-      { Sty_var sty_name }
+      { Sty_var (sty_name, None) }
+    | sty_name = mkloc(UIDENT); LBRACKET; sty = sess_ty; RBRACKET
+      { Sty_var (sty_name, Some sty) }
     )
     { $1 }
 
@@ -280,10 +282,6 @@ dist(RHS):
     { D_geo arg }
 
 cmd:
-  | cmd = prim_cmd
-    { cmd }
-
-prim_cmd:
   | LBRACE; cmd = cmd; RBRACE
     { cmd }
   | mkcmd(

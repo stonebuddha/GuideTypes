@@ -50,5 +50,3 @@ let cmd_route =
 
 let () =
   Command.run ~version:"0.1.0" ~build_info:"CMU" cmd_route
-
-let tc = Typecheck.tycheck_exp

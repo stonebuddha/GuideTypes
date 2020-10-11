@@ -112,7 +112,7 @@ and sess_ty_desc =
   | Sty_imply of base_ty * sess_ty
   | Sty_ichoice of sess_ty * sess_ty
   | Sty_echoice of sess_ty * sess_ty
-  | Sty_var of type_id
+  | Sty_var of type_id * sess_ty option
 
 type sess_tyv =
   | Styv_one
@@ -120,7 +120,7 @@ type sess_tyv =
   | Styv_imply of base_tyv * sess_tyv
   | Styv_ichoice of sess_tyv * sess_tyv
   | Styv_echoice of sess_tyv * sess_tyv
-  | Styv_var of string
+  | Styv_var of string * sess_tyv
 [@@deriving sexp, equal]
 
 type proc_sig = {

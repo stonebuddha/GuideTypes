@@ -271,7 +271,8 @@ let rec eval_sty sty =
   | Sty_imply (ty1, sty2) -> Styv_imply (eval_bty ty1, eval_sty sty2)
   | Sty_ichoice (sty1, sty2) -> Styv_ichoice (eval_sty sty1, eval_sty sty2)
   | Sty_echoice (sty1, sty2) -> Styv_echoice (eval_sty sty1, eval_sty sty2)
-  | Sty_var type_name -> Styv_var type_name.txt
+  | Sty_var (type_name, None) -> Styv_var (type_name.txt, Styv_one)
+  | Sty_var (type_name, Some sty0) -> Styv_var (type_name.txt, eval_sty sty0)
 
 let collect_sess_tys prog =
   String.Map.of_alist_exn (List.filter_map prog ~f:(fun top ->
@@ -293,14 +294,6 @@ let collect_proc_sigs prog =
       | Top_sess _ -> None
       | Top_proc (proc_name, { proc_sig; _ }) -> Some (proc_name.txt, eval_proc_sig proc_sig)
     ))
-
-let rec continualize sty = function
-  | Styv_one -> sty
-  | Styv_conj (tyv1, sty2) -> Styv_conj (tyv1, continualize sty sty2)
-  | Styv_imply (tyv1, sty2) -> Styv_imply (tyv1, continualize sty sty2)
-  | Styv_ichoice (sty1, sty2) -> Styv_ichoice (continualize sty sty1, continualize sty sty2)
-  | Styv_echoice (sty1, sty2) -> Styv_echoice (continualize sty sty1, continualize sty sty2)
-  | Styv_var id -> Styv_var id
 
 let tycheck_cmd sty_ctxt psig_ctxt =
   let open Result.Let_syntax in
@@ -434,10 +427,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
                     | `Both (type_id, (dir, sty)) ->
                       match Map.find sty_ctxt type_id with
                       | None -> raise (Type_error ("unknown type name " ^ type_id, cmd.cmd_loc))
-                      | Some sty_def ->
-                        match sty with
-                        | Styv_one -> Some (dir, Styv_var type_id)
-                        | _ -> Some (dir, (continualize sty sty_def))
+                      | Some _ -> Some (dir, Styv_var (type_id, sty))
                   )
               )
       end
@@ -467,14 +457,14 @@ let tycheck_proc sty_ctxt psig_ctxt proc =
       let type_id = Option.value_exn psigv.psigv_sess_left |> snd in
       match Map.find sty_ctxt type_id with
       | None -> true
-      | Some sty_def -> not (equal_sess_tyv sty (Styv_var type_id) || equal_sess_tyv sty sty_def)
+      | Some sty_def -> not (equal_sess_tyv sty sty_def)
     ) then
     Error (Type_error ("mismatched left session", proc.proc_loc))
   else if Option.value_map sess_right ~default:false ~f:(fun (_, sty) ->
       let type_id = Option.value_exn psigv.psigv_sess_right |> snd in
       match Map.find sty_ctxt type_id with
       | None -> true
-      | Some sty_def -> not (equal_sess_tyv sty (Styv_var type_id) || equal_sess_tyv sty sty_def)
+      | Some sty_def -> not (equal_sess_tyv sty sty_def)
     ) then
     Error (Type_error ("mismatched right session", proc.proc_loc))
   else
