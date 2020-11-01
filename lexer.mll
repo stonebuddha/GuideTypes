@@ -61,6 +61,7 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   (")", RPAREN);
   (";", SEMI);
   ("/", SLASH);
+  ("_", UNDERSCORE);
 
   ("BER", BER);
   ("UNIF", UNIF);
@@ -130,6 +131,8 @@ rule token = parse
     { update_loc lexbuf None 1 false 0; token lexbuf }
   | blank+
     { token lexbuf }
+  | "_"
+    { Hashtbl.find_exn keyword_table (lexeme lexbuf) }
   | lowercase identchar* as name
     { match Hashtbl.find keyword_table name with
       | Some kwd -> kwd

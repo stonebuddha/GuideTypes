@@ -87,6 +87,7 @@ let mkcmd ~loc cmd_desc = {
 %token TRUE
 %token TYPE
 %token <string> UIDENT
+%token UNDERSCORE
 %token UNIF
 %token UNIT
 %token UREAL
@@ -290,7 +291,9 @@ cmd:
       RETURN; exp = exp
       { M_ret exp }
     | var_name = mkloc(LIDENT); LESSMINUS; cmd1 = cmd; SEMI; cmd2 = cmd
-      { M_bnd (cmd1, var_name, cmd2) }
+      { M_bnd (cmd1, Some var_name, cmd2) }
+    | UNDERSCORE; LESSMINUS; cmd1 = cmd; SEMI; cmd2 = cmd
+      { M_bnd (cmd1, None, cmd2) }
     | proc_name = mkloc(UIDENT); LPAREN; exps = separated_list(SEMI, exp); RPAREN
       { M_call (proc_name, exps) }
     | SAMPLE; LBRACE; channel_name = mkloc(LIDENT); RBRACE; LPAREN; exp = exp; RPAREN

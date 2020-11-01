@@ -18,7 +18,7 @@ and cexp =
   | CE_sample_send of aexp * string
 
 and iexp =
-  | IE_let of (aexp, cexp) Core.Either.t * string * iexp
+  | IE_let of (aexp, cexp) Core.Either.t * string option * iexp
   | IE_tail of (aexp, cexp) Core.Either.t
 
 type iproc_sig = {

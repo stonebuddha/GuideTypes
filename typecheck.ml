@@ -306,7 +306,11 @@ let tycheck_cmd psig_ctxt =
       tycheck_exp ctxt exp
     | M_bnd (cmd1, var_name, cmd2) ->
       let%bind tyv1 = forward ctxt cmd1 in
-      let%bind ctxt' = Or_error.try_with (fun () -> Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
+      let%bind ctxt' = Or_error.try_with (fun () ->
+          match var_name with
+          | None -> ctxt
+          | Some var_name ->
+            Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
       forward ctxt' cmd2
     | M_call (proc_name, exps) ->
       begin
@@ -357,7 +361,11 @@ let tycheck_cmd psig_ctxt =
       Ok sess
     | M_bnd (cmd1, var_name, cmd2) ->
       let%bind tyv1 = forward ctxt cmd1 in
-      let%bind ctxt' = Or_error.try_with (fun () -> Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
+      let%bind ctxt' = Or_error.try_with (fun () ->
+          match var_name with
+          | None -> ctxt
+          | Some var_name ->
+            Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
       let%bind sess' = backward ctxt' sess cmd2 in
       backward ctxt sess' cmd1
     | M_sample_recv (_, channel_name) ->

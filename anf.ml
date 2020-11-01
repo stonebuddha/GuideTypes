@@ -23,7 +23,7 @@ let rec normalize_exp exp cont =
 
   | E_let (exp1, var_name, exp2) ->
     normalize_exp exp1 (fun nexp1 ->
-        IE_let (nexp1, var_name.txt, normalize_exp exp2 cont)
+        IE_let (nexp1, Some var_name.txt, normalize_exp exp2 cont)
       )
 
   | E_cond (exp0, exp1, exp2) ->
@@ -100,7 +100,7 @@ and normalize_exp_name exp cont =
         ~first:(fun aexp -> cont aexp)
         ~second:(fun _ ->
             let var_name = genvar () in
-            IE_let (nexp, var_name, cont (AE_var var_name))))
+            IE_let (nexp, Some var_name, cont (AE_var var_name))))
 
 and normalize_exp_term exp =
   normalize_exp exp (fun nexp -> IE_tail nexp)
@@ -112,7 +112,7 @@ let rec normalize_cmd cmd cont =
 
   | M_bnd (cmd1, var_name, cmd2) ->
     normalize_cmd cmd1 (fun nexp1 ->
-        IE_let (nexp1, var_name.txt, normalize_cmd cmd2 cont)
+        IE_let (nexp1, Option.map var_name ~f:(fun var_name -> var_name.txt), normalize_cmd cmd2 cont)
       )
 
   | M_call (proc_name, exps) ->

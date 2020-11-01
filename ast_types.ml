@@ -84,7 +84,7 @@ type cmd = {
 
 and cmd_desc =
   | M_ret of exp
-  | M_bnd of cmd * variable_id * cmd
+  | M_bnd of cmd * variable_id option * cmd
   | M_call of procedure_id * exp list
   | M_sample_recv of exp * channel_id
   | M_sample_send of exp * channel_id

@@ -42,8 +42,10 @@ let emit_ret_or_bnd ?bind lev fmt =
   match bind with
   | None ->
     Format.fprintf fmt "%sreturn %a@." lev
-  | Some var_name ->
+  | Some (Some var_name) ->
     Format.fprintf fmt "%s%s = %a@." lev var_name
+  | Some None ->
+    Format.fprintf fmt "%s%a@." lev
 
 let rec emit_cexp ?bind lev fmt = function
   | CE_app (exp1, exp2) ->
