@@ -134,7 +134,7 @@ type proc = {
 }
 
 type sess_or_proc =
-  | Top_sess of type_id * sess_ty
+  | Top_sess of type_id * sess_ty option
   | Top_proc of procedure_id * proc
 
 type prog = sess_or_proc list

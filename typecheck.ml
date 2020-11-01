@@ -274,10 +274,10 @@ let rec eval_sty sty =
   | Sty_var (type_name, Some sty0) -> Styv_var (type_name.txt, eval_sty sty0)
 
 let collect_sess_tys prog =
-  String.Map.of_alist_exn (List.filter_map prog ~f:(fun top ->
+  Hashtbl.of_alist_or_error (module String) (List.filter_map prog ~f:(fun top ->
       match top with
       | Top_proc _ -> None
-      | Top_sess (type_name, sty) -> Some (type_name.txt, eval_sty sty)
+      | Top_sess (type_name, sty) -> Some (type_name.txt, Option.map ~f:eval_sty sty)
     ))
 
 let eval_proc_sig psig =
@@ -288,13 +288,13 @@ let eval_proc_sig psig =
   }
 
 let collect_proc_sigs prog =
-  String.Map.of_alist_exn (List.filter_map prog ~f:(fun top ->
+  String.Map.of_alist_or_error (List.filter_map prog ~f:(fun top ->
       match top with
       | Top_sess _ -> None
       | Top_proc (proc_name, { proc_sig; _ }) -> Some (proc_name.txt, eval_proc_sig proc_sig)
     ))
 
-let tycheck_cmd sty_ctxt psig_ctxt =
+let tycheck_cmd psig_ctxt =
   let rec forward ctxt cmd =
     match cmd.cmd_desc with
     | M_ret exp ->
@@ -413,7 +413,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
         match Map.find psig_ctxt proc_name.txt with
         | None -> Or_error.of_exn (Type_error ("unknown procedure " ^ proc_name.txt, proc_name.loc))
         | Some psigv ->
-          let sess0 = String.Map.of_alist_exn
+          let%bind sess0 = String.Map.of_alist_or_error
               (List.append (Option.to_list psigv.psigv_sess_left) (Option.to_list psigv.psigv_sess_right)) in
           if not (Set.equal (Map.key_set sess0) (Map.key_set sess)) then
             Or_error.of_exn (Type_error ("mismatched channels", cmd.cmd_loc))
@@ -423,9 +423,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
                     | `Left _
                     | `Right _ -> assert false
                     | `Both (type_id, (dir, sty)) ->
-                      match Map.find sty_ctxt type_id with
-                      | None -> raise (Type_error ("unknown type name " ^ type_id, cmd.cmd_loc))
-                      | Some _ -> Some (dir, Styv_var (type_id, sty))
+                      Some (dir, Styv_var (type_id, sty))
                   )
               )
       end
@@ -434,7 +432,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
     let%bind tyv = forward ctxt cmd in
     let sess_left = Option.map sess_left ~f:(fun (k, v) -> (k, (`Left, v))) in
     let sess_right = Option.map sess_right ~f:(fun (k, v) -> (k, (`Right, v))) in
-    let sess = String.Map.of_alist_exn (List.append (Option.to_list sess_left) (Option.to_list sess_right)) in
+    let%bind sess = String.Map.of_alist_or_error (List.append (Option.to_list sess_left) (Option.to_list sess_right)) in
     let%bind sess' = backward ctxt sess cmd in
     Ok (tyv,
         Option.map sess_left ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)),
@@ -443,8 +441,8 @@ let tycheck_cmd sty_ctxt psig_ctxt =
 
 let tycheck_proc sty_ctxt psig_ctxt proc =
   let psigv = eval_proc_sig proc.proc_sig in
-  let ctxt = String.Map.of_alist_exn psigv.psigv_param_tys in
-  let%bind (tyv, sess_left, sess_right) = tycheck_cmd sty_ctxt psig_ctxt ctxt
+  let%bind ctxt = String.Map.of_alist_or_error psigv.psigv_param_tys in
+  let%bind (tyv, sess_left, sess_right) = tycheck_cmd psig_ctxt ctxt
       (Option.map psigv.psigv_sess_left ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       (Option.map psigv.psigv_sess_right ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       proc.proc_body in
@@ -452,27 +450,65 @@ let tycheck_proc sty_ctxt psig_ctxt proc =
     Or_error.of_exn (Type_error ("mismatched signature types", proc.proc_loc))
   else if Option.value_map sess_left ~default:false ~f:(fun (_, sty) ->
       let type_id = Option.value_exn psigv.psigv_sess_left |> snd in
-      match Map.find sty_ctxt type_id with
+      match Hashtbl.find sty_ctxt type_id with
       | None -> true
-      | Some sty_def -> not (equal_sess_tyv sty sty_def)
+      | Some sty_def ->
+        match sty_def with
+        | None ->
+          Format.printf "inferred session:@.\ttype %s[$] = %a@." type_id Ast_ops.print_sess_tyv sty;
+          Hashtbl.set sty_ctxt ~key:type_id ~data:(Some sty);
+          false
+        | Some sty_def ->
+          not (equal_sess_tyv sty sty_def)
     ) then
     Or_error.of_exn (Type_error ("mismatched left session", proc.proc_loc))
   else if Option.value_map sess_right ~default:false ~f:(fun (_, sty) ->
       let type_id = Option.value_exn psigv.psigv_sess_right |> snd in
-      match Map.find sty_ctxt type_id with
+      match Hashtbl.find sty_ctxt type_id with
       | None -> true
-      | Some sty_def -> not (equal_sess_tyv sty sty_def)
+      | Some sty_def ->
+        match sty_def with
+        | None ->
+          Format.printf "inferred session:@.\ttype %s[$] = %a@." type_id Ast_ops.print_sess_tyv sty;
+          Hashtbl.set sty_ctxt ~key:type_id ~data:(Some sty);
+          false
+        | Some sty_def ->
+          not (equal_sess_tyv sty sty_def)
     ) then
     Or_error.of_exn (Type_error ("mismatched right session", proc.proc_loc))
   else
     Ok ()
 
+let rec verify_sess_ty sty_ctxt sty =
+  match sty.sty_desc with
+  | Sty_one -> Ok ()
+  | Sty_conj (_, sty2) -> verify_sess_ty sty_ctxt sty2
+  | Sty_imply (_, sty2) -> verify_sess_ty sty_ctxt sty2
+  | Sty_ichoice (sty1, sty2) ->
+    let%bind () = verify_sess_ty sty_ctxt sty1 in
+    verify_sess_ty sty_ctxt sty2
+  | Sty_echoice (sty1, sty2) ->
+    let%bind () = verify_sess_ty sty_ctxt sty1 in
+    verify_sess_ty sty_ctxt sty2
+  | Sty_var (type_name, sty0) ->
+    match Hashtbl.find sty_ctxt type_name.txt with
+    | None -> Or_error.of_exn (Type_error ("unknown type " ^ type_name.txt, type_name.loc))
+    | Some _ -> Option.value_map sty0 ~default:(Ok ()) ~f:(verify_sess_ty sty_ctxt)
+
 let tycheck_prog prog =
-  let sty_ctxt = collect_sess_tys prog in
-  let psig_ctxt = collect_proc_sigs prog in
+  let%bind sty_ctxt = collect_sess_tys prog in
+  let%bind psig_ctxt = collect_proc_sigs prog in
   List.fold_result prog ~init:() ~f:(fun () top ->
       match top with
-      | Top_sess _ -> Ok ()
+      | Top_sess (_, sty) ->
+        begin
+          match sty with
+          | None -> Ok ()
+          | Some sty ->
+            match sty.sty_desc with
+            | Sty_var _ -> Or_error.of_exn (Type_error ("non-contractive type", sty.sty_loc))
+            | _ -> verify_sess_ty sty_ctxt sty
+        end
       | Top_proc (_, proc) -> tycheck_proc sty_ctxt psig_ctxt proc
     )
 

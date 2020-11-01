@@ -144,6 +144,8 @@ rule token = parse
     { FLOATV (Float.of_string lit) }
   | (float_literal | hex_float_literal | int_literal) identchar+ as invalid
     { error lexbuf (Invalid_literal invalid) }
+  | "#"
+    { comment lexbuf }
   | ">=" | "<>" | "<=" | "<-" | "->" | "-o"
     { Hashtbl.find_exn keyword_table (lexeme lexbuf) }
   | ['&' '*' '|' ':' '$' '.' '=' '>' '{' '[' '<' '(' '-' '+' '}' ']' ')' ';' '/']
@@ -152,3 +154,9 @@ rule token = parse
     { EOF }
   | _ as illegal_char
     { error lexbuf (Illegal_character illegal_char) }
+
+and comment = parse
+  | newline
+    { update_loc lexbuf None 1 false 0; token lexbuf }
+  | _
+    { comment lexbuf }

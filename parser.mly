@@ -114,7 +114,9 @@ let mkcmd ~loc cmd_desc = {
 
 toplevel:
   | TYPE; sty_name = mkloc(UIDENT); EQUAL; sty_body = sess_ty
-    { Top_sess (sty_name, sty_body) }
+    { Top_sess (sty_name, Some sty_body) }
+  | TYPE; sty_name = mkloc(UIDENT)
+    { Top_sess (sty_name, None) }
   | PROC; proc_name = mkloc(UIDENT); proc_sig = proc_sig; EQUAL; proc_body = cmd
     { Top_proc (proc_name, { proc_sig; proc_body; proc_loc = make_loc $sloc }) }
 

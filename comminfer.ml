@@ -6,10 +6,11 @@ let build_info = "CMU"
 let report_result result =
   Or_error.iter_error result ~f:(fun err ->
       let exn = Error.to_exn err in
+      Format.eprintf "@.";
       try
-        Format.eprintf "@.%a" Location.report_exception exn; exit 1
-      with exn ->
-        Format.eprintf "@.%a" Exn.pp exn; exit 1
+        Format.eprintf "%a" Location.report_exception exn; exit 1
+      with _ ->
+        Format.eprintf "%a@." Error.pp err; exit 1
     )
 
 let parse_file filename =
@@ -69,4 +70,9 @@ let cmd_route =
   ]
 
 let () =
+  let t1 = Time_now.nanoseconds_since_unix_epoch () |> Time_ns.of_int63_ns_since_epoch in
+  at_exit (fun () ->
+      let t2 = Time_now.nanoseconds_since_unix_epoch () |> Time_ns.of_int63_ns_since_epoch in
+      Format.printf "@.total time: %a@." Time_ns.Span.pp Time_ns.(diff t2 t1)
+    );
   Command.run ~version ~build_info cmd_route
