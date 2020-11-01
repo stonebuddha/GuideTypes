@@ -111,10 +111,10 @@ let tycheck_bop bop arg1 arg2 =
 
       | Bop_sub, Pty_ureal, Pty_ureal
       | Bop_sub, Pty_ureal, Pty_preal
-      | Bop_sub, Pty_ureal, Pty_real
+      | Bop_sub, Pty_ureal, Pty_real -> Ok Pty_real
       | Bop_sub, Pty_preal, Pty_ureal
       | Bop_sub, Pty_preal, Pty_preal
-      | Bop_sub, Pty_preal, Pty_real
+      | Bop_sub, Pty_preal, Pty_real -> Ok Pty_real
       | Bop_sub, Pty_real, Pty_ureal
       | Bop_sub, Pty_real, Pty_preal
       | Bop_sub, Pty_real, Pty_real -> Ok Pty_real
@@ -122,21 +122,25 @@ let tycheck_bop bop arg1 arg2 =
       | Bop_mul, Pty_ureal, Pty_ureal -> Ok Pty_ureal
       | Bop_mul, Pty_ureal, Pty_preal -> Ok Pty_preal
       | Bop_mul, Pty_ureal, Pty_real -> Ok Pty_real
-      | Bop_mul, Pty_preal, Pty_ureal -> Ok Pty_preal
+      | Bop_mul, Pty_preal, Pty_ureal
       | Bop_mul, Pty_preal, Pty_preal -> Ok Pty_preal
       | Bop_mul, Pty_preal, Pty_real -> Ok Pty_real
-      | Bop_mul, Pty_real, Pty_ureal -> Ok Pty_real
-      | Bop_mul, Pty_real, Pty_preal -> Ok Pty_real
+      | Bop_mul, Pty_real, Pty_ureal
+      | Bop_mul, Pty_real, Pty_preal
       | Bop_mul, Pty_real, Pty_real -> Ok Pty_real
+      | Bop_mul, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n * m))
+      | Bop_mul, Pty_fnat _, Pty_nat -> Ok Pty_nat
+      | Bop_mul, Pty_nat, Pty_fnat _
+      | Bop_mul, Pty_nat, Pty_nat -> Ok Pty_nat
 
-      | Bop_div, Pty_ureal, Pty_ureal -> Ok Pty_preal
+      | Bop_div, Pty_ureal, Pty_ureal
       | Bop_div, Pty_ureal, Pty_preal -> Ok Pty_preal
       | Bop_div, Pty_ureal, Pty_real -> Ok Pty_real
-      | Bop_div, Pty_preal, Pty_ureal -> Ok Pty_preal
+      | Bop_div, Pty_preal, Pty_ureal
       | Bop_div, Pty_preal, Pty_preal -> Ok Pty_preal
       | Bop_div, Pty_preal, Pty_real -> Ok Pty_real
-      | Bop_div, Pty_real, Pty_ureal -> Ok Pty_real
-      | Bop_div, Pty_real, Pty_preal -> Ok Pty_real
+      | Bop_div, Pty_real, Pty_ureal
+      | Bop_div, Pty_real, Pty_preal
       | Bop_div, Pty_real, Pty_real -> Ok Pty_real
 
       | Bop_eq, pty1, pty2
@@ -209,7 +213,8 @@ let rec tycheck_exp ctxt exp =
     end
   | E_let (exp1, var_name, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
-    tycheck_exp (Map.set ctxt ~key:var_name.txt ~data:tyv1) exp2
+    let%bind ctxt' = Or_error.try_with (fun () -> Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
+    tycheck_exp ctxt' exp2
   | E_dist dist ->
     let%bind tyv = tycheck_dist ~loc:exp.exp_loc ctxt dist in
     Ok (Btyv_dist tyv)
@@ -300,8 +305,9 @@ let tycheck_cmd psig_ctxt =
     | M_ret exp ->
       tycheck_exp ctxt exp
     | M_bnd (cmd1, var_name, cmd2) ->
-      let %bind tyv1 = forward ctxt cmd1 in
-      forward (Map.set ctxt ~key:var_name.txt ~data:tyv1) cmd2
+      let%bind tyv1 = forward ctxt cmd1 in
+      let%bind ctxt' = Or_error.try_with (fun () -> Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
+      forward ctxt' cmd2
     | M_call (proc_name, exps) ->
       begin
         match Map.find psig_ctxt proc_name.txt with
@@ -332,7 +338,8 @@ let tycheck_cmd psig_ctxt =
       let%bind tyv1 = forward ctxt cmd1 in
       let%bind tyv2 = forward ctxt cmd2 in
       join_type ~loc:cmd.cmd_loc tyv1 tyv2
-    | M_branch_send (exp, cmd1, cmd2, _) ->
+    | M_branch_send (exp, cmd1, cmd2, _)
+    | M_branch_self (exp, cmd1, cmd2) ->
       let%bind tyv = tycheck_exp ctxt exp in
       begin
         match tyv with
@@ -350,7 +357,8 @@ let tycheck_cmd psig_ctxt =
       Ok sess
     | M_bnd (cmd1, var_name, cmd2) ->
       let%bind tyv1 = forward ctxt cmd1 in
-      let%bind sess' = backward (Map.set ctxt ~key:var_name.txt ~data:tyv1) sess cmd2 in
+      let%bind ctxt' = Or_error.try_with (fun () -> Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
+      let%bind sess' = backward ctxt' sess cmd2 in
       backward ctxt sess' cmd1
     | M_sample_recv (_, channel_name) ->
       let%bind tyv = forward ctxt cmd in
@@ -379,13 +387,13 @@ let tycheck_cmd psig_ctxt =
           Map.merge sess1 sess2 ~f:(fun ~key -> function
               | `Left _
               | `Right _ -> assert false
-              | `Both ((dir1, sty1), (_, sty2)) ->
+              | `Both ((dir1, styv1), (_, styv2)) ->
                 if String.(key = channel_name.txt) then
                   match dir1 with
-                  | `Left -> Some (`Left, Styv_ichoice (sty1, sty2))
-                  | `Right -> Some (`Right, Styv_echoice (sty1, sty2))
-                else if equal_sess_tyv sty1 sty2 then
-                  Some (dir1, sty1)
+                  | `Left -> Some (`Left, Styv_ichoice (styv1, styv2))
+                  | `Right -> Some (`Right, Styv_echoice (styv1, styv2))
+                else if equal_sess_tyv styv1 styv2 then
+                  Some (dir1, styv1)
                 else
                   raise (Type_error ("mismatched sessions", cmd.cmd_loc))
             )
@@ -397,13 +405,27 @@ let tycheck_cmd psig_ctxt =
           Map.merge sess1 sess2 ~f:(fun ~key -> function
               | `Left _
               | `Right _ -> assert false
-              | `Both ((dir1, sty1), (_, sty2)) ->
+              | `Both ((dir1, styv1), (_, styv2)) ->
                 if String.(key = channel_name.txt) then
                   match dir1 with
-                  | `Left -> Some (`Left, Styv_echoice (sty1, sty2))
-                  | `Right -> Some (`Right, Styv_ichoice (sty1, sty2))
-                else if equal_sess_tyv sty1 sty2 then
-                  Some (dir1, sty1)
+                  | `Left -> Some (`Left, Styv_echoice (styv1, styv2))
+                  | `Right -> Some (`Right, Styv_ichoice (styv1, styv2))
+                else if equal_sess_tyv styv1 styv2 then
+                  Some (dir1, styv1)
+                else
+                  raise (Type_error ("mismatched sessions", cmd.cmd_loc))
+            )
+        )
+    | M_branch_self (_, cmd1, cmd2) ->
+      let%bind sess1 = backward ctxt sess cmd1 in
+      let%bind sess2 = backward ctxt sess cmd2 in
+      Or_error.try_with (fun () ->
+          Map.merge sess1 sess2 ~f:(fun ~key:_ -> function
+              | `Left _
+              | `Right _ -> assert false
+              | `Both ((dir1, styv1), (_, styv2)) ->
+                if equal_sess_tyv styv1 styv2 then
+                  Some (dir1, styv1)
                 else
                   raise (Type_error ("mismatched sessions", cmd.cmd_loc))
             )

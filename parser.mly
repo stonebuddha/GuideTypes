@@ -301,5 +301,7 @@ cmd:
       { M_branch_send (exp, cmd1, cmd2, channel_name) }
     | IF; LBRACE; channel_name = mkloc(LIDENT); RBRACE; DOT; THEN; cmd1 = cmd; ELSE; cmd2 = cmd
       { M_branch_recv (cmd1, cmd2, channel_name) }
+    | IF; exp = exp; THEN; cmd1 = cmd; ELSE; cmd2 = cmd
+      { M_branch_self (exp, cmd1, cmd2) }
     )
     { $1 }

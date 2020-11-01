@@ -34,6 +34,16 @@ let typecheck prog =
       Typecheck.tycheck_prog prog
     )
 
+let anf prog =
+  Timer.wrap_duration "normalizing" (fun () ->
+      Anf.normalize_prog prog
+    )
+
+let compile prog =
+  Timer.wrap_duration "emission" (fun () ->
+      Compile.emit_prog Format.std_formatter prog
+    )
+
 let cmd_only_parse =
   Command.basic ~summary:"only parse" (
     let open Command.Let_syntax in
@@ -63,10 +73,45 @@ let cmd_type_check =
       report_result result
   )
 
+let cmd_normalize =
+  Command.basic ~summary:"normalize" (
+    let open Command.Let_syntax in
+    let%map_open filename = anon ("filename" %: Filename.arg_type)
+    in
+    fun () ->
+      let result =
+        let open Or_error.Let_syntax in
+        let%bind prog = parse_file filename in
+        let%bind () = typecheck prog in
+        let iprog = anf prog in
+        Ok iprog
+      in
+      report_result result
+  )
+
+let cmd_compile =
+  Command.basic ~summary:"compile" (
+    let open Command.Let_syntax in
+    let%map_open filename = anon ("filename" %: Filename.arg_type)
+    in
+    fun () ->
+      let result =
+        let open Or_error.Let_syntax in
+        let%bind prog = parse_file filename in
+        let%bind () = typecheck prog in
+        let iprog = anf prog in
+        let () = compile iprog in
+        Ok iprog
+      in
+      report_result result
+  )
+
 let cmd_route =
   Command.group ~summary:"CommInfer" [
     ("only-parse", cmd_only_parse);
     ("type-check", cmd_type_check);
+    ("normalize", cmd_normalize);
+    ("compile", cmd_compile);
   ]
 
 let () =

@@ -18,7 +18,7 @@ type prim_ty =
   | Pty_real
   | Pty_fnat of int
   | Pty_nat
-[@@deriving sexp, equal]
+[@@deriving equal]
 
 type base_ty = {
   bty_desc: base_ty_desc;
@@ -34,7 +34,7 @@ type base_tyv =
   | Btyv_prim of prim_ty
   | Btyv_arrow of base_tyv * base_tyv
   | Btyv_dist of base_tyv
-[@@deriving sexp, equal]
+[@@deriving equal]
 
 type binop =
   | Bop_add
@@ -90,6 +90,7 @@ and cmd_desc =
   | M_sample_send of exp * channel_id
   | M_branch_recv of cmd * cmd * channel_id
   | M_branch_send of exp * cmd * cmd * channel_id
+  | M_branch_self of exp * cmd * cmd
 
 type sess_ty = {
   sty_desc: sess_ty_desc;
@@ -111,7 +112,7 @@ type sess_tyv =
   | Styv_ichoice of sess_tyv * sess_tyv
   | Styv_echoice of sess_tyv * sess_tyv
   | Styv_var of string * sess_tyv
-[@@deriving sexp, equal]
+[@@deriving equal]
 
 type proc_sig = {
   psig_param_tys: (variable_id * base_ty) list;
