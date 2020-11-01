@@ -1,17 +1,37 @@
 open Core
 
-let report_error result =
-  Result.iter_error result ~f:(fun exn -> Location.report_exception Format.err_formatter exn; exit 1)
+let version = "0.1.0"
+let build_info = "CMU"
+
+let report_result result =
+  Or_error.iter_error result ~f:(fun err ->
+      let exn = Error.to_exn err in
+      try
+        Format.eprintf "@.%a" Location.report_exception exn; exit 1
+      with exn ->
+        Format.eprintf "@.%a" Exn.pp exn; exit 1
+    )
 
 let parse_file filename =
-  let parse_channel ch =
-    let lexbuf = Lexing.from_channel ch in
-    Location.init lexbuf filename;
-    Location.input_name := filename;
-    Location.input_lexbuf := Some lexbuf;
-    Parse.implementation lexbuf
-  in
-  In_channel.with_file filename ~f:parse_channel
+  Timer.wrap_duration "parsing" (fun () ->
+      match Sys.file_exists filename with
+      | `No | `Unknown ->
+        Error (Error.of_string "file not found")
+      | `Yes ->
+        let parse_channel ch =
+          let lexbuf = Lexing.from_channel ch in
+          Location.init lexbuf filename;
+          Location.input_name := filename;
+          Location.input_lexbuf := Some lexbuf;
+          Parse.implementation lexbuf
+        in
+        In_channel.with_file filename ~f:parse_channel
+    )
+
+let typecheck prog =
+  Timer.wrap_duration "typechecking" (fun () ->
+      Typecheck.tycheck_prog prog
+    )
 
 let cmd_only_parse =
   Command.basic ~summary:"only parse" (
@@ -20,11 +40,11 @@ let cmd_only_parse =
     in
     fun () ->
       let result =
-        let open Result.Let_syntax in
+        let open Or_error.Let_syntax in
         let%bind prog = parse_file filename in
         Ok prog
       in
-      report_error result
+      report_result result
   )
 
 let cmd_type_check =
@@ -34,12 +54,12 @@ let cmd_type_check =
     in
     fun () ->
       let result =
-        let open Result.Let_syntax in
+        let open Or_error.Let_syntax in
         let%bind prog = parse_file filename in
-        let%bind () = Typecheck.tycheck_prog prog in
+        let%bind () = typecheck prog in
         Ok ()
       in
-      report_error result
+      report_result result
   )
 
 let cmd_route =
@@ -49,4 +69,4 @@ let cmd_route =
   ]
 
 let () =
-  Command.run ~version:"0.1.0" ~build_info:"CMU" cmd_route
+  Command.run ~version ~build_info cmd_route

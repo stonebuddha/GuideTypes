@@ -1,5 +1,6 @@
 open Core
 open Ast_types
+open Or_error.Let_syntax
 
 exception Type_error of string * Location.t
 
@@ -39,7 +40,7 @@ let join_prim ~loc pty1 pty2 =
   else if is_prim_subtype pty2 pty1 then
     Ok pty1
   else
-    Error (Type_error ("join error", loc))
+    Or_error.of_exn (Type_error ("join error", loc))
 
 let meet_prim ~loc pty1 pty2 =
   if is_prim_subtype pty1 pty2 then
@@ -47,10 +48,9 @@ let meet_prim ~loc pty1 pty2 =
   else if is_prim_subtype pty2 pty1 then
     Ok pty2
   else
-    Error (Type_error ("meet error", loc))
+    Or_error.of_exn (Type_error ("meet error", loc))
 
 let rec join_type ~loc tyv1 tyv2 =
-  let open Result.Let_syntax in
   match tyv1, tyv2 with
   | Btyv_prim pty1, Btyv_prim pty2 ->
     let%bind pty = join_prim ~loc pty1 pty2 in
@@ -59,15 +59,15 @@ let rec join_type ~loc tyv1 tyv2 =
     if equal_base_tyv tyv1' tyv2' then
       Ok (Btyv_dist tyv1')
     else
-      Error (Type_error ("join error", loc))
+      Or_error.of_exn (Type_error ("join error", loc))
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) ->
     let%bind tyv1' = meet_type ~loc tyv11 tyv21 in
     let%bind tyv2' = join_type ~loc tyv12 tyv22 in
     Ok (Btyv_arrow (tyv1', tyv2'))
-  | _ -> Error (Type_error ("join error", loc))
+  | _ ->
+    Or_error.of_exn (Type_error ("join error", loc))
 
 and meet_type ~loc tyv1 tyv2 =
-  let open Result.Let_syntax in
   match tyv1, tyv2 with
   | Btyv_prim pty1, Btyv_prim pty2 ->
     let%bind pty = meet_prim ~loc pty1 pty2 in
@@ -76,21 +76,21 @@ and meet_type ~loc tyv1 tyv2 =
     if equal_base_tyv tyv1' tyv2' then
       Ok (Btyv_dist tyv1')
     else
-      Error (Type_error ("meet error", loc))
+      Or_error.of_exn (Type_error ("meet error", loc))
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) ->
     let%bind tyv1' = join_type ~loc tyv11 tyv21 in
     let%bind tyv2' = meet_type ~loc tyv12 tyv22 in
     Ok (Btyv_arrow (tyv1', tyv2'))
-  | _ -> Error (Type_error ("meet error", loc))
+  | _ ->
+    Or_error.of_exn (Type_error ("meet error", loc))
 
-let rec eval_bty ty =
+let rec eval_ty ty =
   match ty.bty_desc with
   | Bty_prim pty -> Btyv_prim pty
-  | Bty_arrow (ty1, ty2) -> Btyv_arrow (eval_bty ty1, eval_bty ty2)
-  | Bty_dist ty0 -> Btyv_dist (eval_bty ty0)
+  | Bty_arrow (ty1, ty2) -> Btyv_arrow (eval_ty ty1, eval_ty ty2)
+  | Bty_dist ty0 -> Btyv_dist (eval_ty ty0)
 
 let tycheck_bop bop arg1 arg2 =
-  let open Result.Let_syntax in
   match arg1, arg2 with
   | Btyv_prim pty1, Btyv_prim pty2 ->
     let%bind res =
@@ -150,19 +150,19 @@ let tycheck_bop bop arg1 arg2 =
       | Bop_and, Pty_bool, Pty_bool
       | Bop_or, Pty_bool, Pty_bool -> Ok Pty_bool
 
-      | _ -> Error (Type_error ("mismatched operand types", bop.loc))
+      | _ -> Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
     in
     Ok (Btyv_prim res)
-  | _ -> Error (Type_error ("mismatched operand types", bop.loc))
+  | _ ->
+    Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
 
 let rec tycheck_exp ctxt exp =
-  let open Result.Let_syntax in
   match exp.exp_desc with
   | E_var var_name ->
     begin
       match Map.find ctxt var_name.txt with
       | Some tyv -> Ok tyv
-      | None -> Error (Type_error ("undefined variable " ^ var_name.txt, exp.exp_loc))
+      | None -> Or_error.of_exn (Type_error ("undefined variable " ^ var_name.txt, exp.exp_loc))
     end
   | E_triv -> Ok (Btyv_prim Pty_unit)
   | E_bool _ -> Ok (Btyv_prim Pty_bool)
@@ -173,7 +173,7 @@ let rec tycheck_exp ctxt exp =
       let%bind tyv2 = tycheck_exp ctxt exp2 in
       join_type ~loc:exp.exp_loc tyv1 tyv2
     else
-      Error (Type_error ("non-boolean condition type", exp0.exp_loc))
+      Or_error.of_exn (Type_error ("non-boolean condition type", exp0.exp_loc))
   | E_real r ->
     if Float.(r > 0. && r < 1.) then
       Ok (Btyv_prim Pty_ureal)
@@ -185,13 +185,13 @@ let rec tycheck_exp ctxt exp =
     if n >= 0 then
       Ok (Btyv_prim (Pty_fnat (n + 1)))
     else
-      Error (Type_error ("negative integers", exp.exp_loc))
+      Or_error.of_exn (Type_error ("negative integers", exp.exp_loc))
   | E_binop (bop, exp1, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
     let%bind tyv2 = tycheck_exp ctxt exp2 in
     tycheck_bop bop tyv1 tyv2
   | E_abs (var_name, ty, exp0) ->
-    let tyv = eval_bty ty in
+    let tyv = eval_ty ty in
     let%bind tyv0 = tycheck_exp (Map.set ctxt ~key:var_name.txt ~data:tyv) exp0 in
     Ok (Btyv_arrow (tyv, tyv0))
   | E_app (exp1, exp2) ->
@@ -203,9 +203,9 @@ let rec tycheck_exp ctxt exp =
         if is_subtype tyv2 tyv11 then
           Ok tyv12
         else
-          Error (Type_error ("mismatched argument types", exp2.exp_loc))
+          Or_error.of_exn (Type_error ("mismatched argument types", exp2.exp_loc))
       | _ ->
-        Error (Type_error ("non-arrow function type", exp.exp_loc))
+        Or_error.of_exn (Type_error ("non-arrow function type", exp.exp_loc))
     end
   | E_let (exp1, var_name, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
@@ -215,14 +215,13 @@ let rec tycheck_exp ctxt exp =
     Ok (Btyv_dist tyv)
 
 and tycheck_dist ~loc ctxt dist =
-  let open Result.Let_syntax in
   match dist with
   | D_ber exp ->
     let%bind tyv = tycheck_exp ctxt exp in
     if is_subtype tyv (Btyv_prim Pty_ureal) then
       Ok (Btyv_prim Pty_bool)
     else
-      Error (Type_error ("mismatched parameter types", loc))
+      Or_error.of_exn (Type_error ("mismatched parameter types", loc))
   | D_unif ->
     Ok (Btyv_prim Pty_ureal)
   | D_beta (exp1, exp2) ->
@@ -231,21 +230,21 @@ and tycheck_dist ~loc ctxt dist =
     if is_subtype tyv1 (Btyv_prim Pty_preal) && is_subtype tyv2 (Btyv_prim Pty_preal) then
       Ok (Btyv_prim Pty_ureal)
     else
-      Error (Type_error ("mismatched parameter types", loc))
+      Or_error.of_exn (Type_error ("mismatched parameter types", loc))
   | D_gamma (exp1, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
     let%bind tyv2 = tycheck_exp ctxt exp2 in
     if is_subtype tyv1 (Btyv_prim Pty_preal) && is_subtype tyv2 (Btyv_prim Pty_preal) then
       Ok (Btyv_prim Pty_preal)
     else
-      Error (Type_error ("mismatched parameter types", loc))
+      Or_error.of_exn (Type_error ("mismatched parameter types", loc))
   | D_normal (exp1, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
     let%bind tyv2 = tycheck_exp ctxt exp2 in
     if is_subtype tyv1 (Btyv_prim Pty_real) && is_subtype tyv2 (Btyv_prim Pty_preal) then
       Ok (Btyv_prim Pty_real)
     else
-      Error (Type_error ("mismatched parameter types", loc))
+      Or_error.of_exn (Type_error ("mismatched parameter types", loc))
   | D_cat exps ->
     let n = List.length exps in
     let%bind () = List.fold_result exps ~init:() ~f:(fun () exp ->
@@ -253,7 +252,7 @@ and tycheck_dist ~loc ctxt dist =
         if is_subtype tyv (Btyv_prim Pty_preal) then
           Ok ()
         else
-          Error (Type_error ("mismatched parameter types", loc))
+          Or_error.of_exn (Type_error ("mismatched parameter types", loc))
       )
     in
     Ok (Btyv_prim (Pty_fnat n))
@@ -262,13 +261,13 @@ and tycheck_dist ~loc ctxt dist =
     if is_subtype tyv (Btyv_prim Pty_ureal) then
       Ok (Btyv_prim Pty_nat)
     else
-      Error (Type_error ("mismatched parameter types", loc))
+      Or_error.of_exn (Type_error ("mismatched parameter types", loc))
 
 let rec eval_sty sty =
   match sty.sty_desc with
   | Sty_one -> Styv_one
-  | Sty_conj (ty1, sty2) -> Styv_conj (eval_bty ty1, eval_sty sty2)
-  | Sty_imply (ty1, sty2) -> Styv_imply (eval_bty ty1, eval_sty sty2)
+  | Sty_conj (ty1, sty2) -> Styv_conj (eval_ty ty1, eval_sty sty2)
+  | Sty_imply (ty1, sty2) -> Styv_imply (eval_ty ty1, eval_sty sty2)
   | Sty_ichoice (sty1, sty2) -> Styv_ichoice (eval_sty sty1, eval_sty sty2)
   | Sty_echoice (sty1, sty2) -> Styv_echoice (eval_sty sty1, eval_sty sty2)
   | Sty_var (type_name, None) -> Styv_var (type_name.txt, Styv_one)
@@ -282,8 +281,8 @@ let collect_sess_tys prog =
     ))
 
 let eval_proc_sig psig =
-  { psigv_param_tys = List.map psig.psig_param_tys ~f:(fun (var_name, ty) -> (var_name.txt, eval_bty ty))
-  ; psigv_ret_ty = eval_bty psig.psig_ret_ty
+  { psigv_param_tys = List.map psig.psig_param_tys ~f:(fun (var_name, ty) -> (var_name.txt, eval_ty ty))
+  ; psigv_ret_ty = eval_ty psig.psig_ret_ty
   ; psigv_sess_left = Option.map psig.psig_sess_left ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
   ; psigv_sess_right = Option.map psig.psig_sess_right ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
   }
@@ -296,7 +295,6 @@ let collect_proc_sigs prog =
     ))
 
 let tycheck_cmd sty_ctxt psig_ctxt =
-  let open Result.Let_syntax in
   let rec forward ctxt cmd =
     match cmd.cmd_desc with
     | M_ret exp ->
@@ -307,10 +305,10 @@ let tycheck_cmd sty_ctxt psig_ctxt =
     | M_call (proc_name, exps) ->
       begin
         match Map.find psig_ctxt proc_name.txt with
-        | None -> Error (Type_error ("unknown procedure " ^ proc_name.txt, proc_name.loc))
+        | None -> Or_error.of_exn (Type_error ("unknown procedure " ^ proc_name.txt, proc_name.loc))
         | Some psigv ->
           if List.length psigv.psigv_param_tys <> List.length exps then
-            Error (Type_error ("mismatched arity", cmd.cmd_loc))
+            Or_error.of_exn (Type_error ("mismatched arity", cmd.cmd_loc))
           else
             let%bind tyvs = List.fold_result (List.rev exps) ~init:[] ~f:(fun acc exp ->
                 let%bind tyv = tycheck_exp ctxt exp in
@@ -318,7 +316,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
               )
             in
             if not (List.for_all2_exn tyvs psigv.psigv_param_tys ~f:(fun tyv (_, tyv') -> is_subtype tyv tyv')) then
-              Error (Type_error ("mismatched argument types", cmd.cmd_loc))
+              Or_error.of_exn (Type_error ("mismatched argument types", cmd.cmd_loc))
             else
               Ok psigv.psigv_ret_ty
       end
@@ -328,7 +326,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
       begin
         match tyv with
         | Btyv_dist tyv0 -> Ok tyv0
-        | _ -> Error (Type_error ("non-distribution types", exp.exp_loc))
+        | _ -> Or_error.of_exn (Type_error ("non-distribution types", exp.exp_loc))
       end
     | M_branch_recv (cmd1, cmd2, _) ->
       let%bind tyv1 = forward ctxt cmd1 in
@@ -343,7 +341,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
           let%bind tyv2 = forward ctxt cmd2 in
           join_type ~loc:cmd.cmd_loc tyv1 tyv2
         | _ ->
-          Error (Type_error ("non-boolean condition type", exp.exp_loc))
+          Or_error.of_exn (Type_error ("non-boolean condition type", exp.exp_loc))
       end
   in
   let rec backward ctxt sess cmd =
@@ -358,7 +356,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
       let%bind tyv = forward ctxt cmd in
       begin
         match Map.find sess channel_name.txt with
-        | None -> Error (Type_error ("unknown channel " ^ channel_name.txt, channel_name.loc))
+        | None -> Or_error.of_exn (Type_error ("unknown channel " ^ channel_name.txt, channel_name.loc))
         | Some (`Left, sty) ->
           Ok (Map.set sess ~key:channel_name.txt ~data:(`Left, Styv_conj (tyv, sty)))
         | Some (`Right, sty) ->
@@ -368,7 +366,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
       let%bind tyv = forward ctxt cmd in
       begin
         match Map.find sess channel_name.txt with
-        | None -> Error (Type_error ("unknown channel " ^ channel_name.txt, channel_name.loc))
+        | None -> Or_error.of_exn (Type_error ("unknown channel " ^ channel_name.txt, channel_name.loc))
         | Some (`Left, sty) ->
           Ok (Map.set sess ~key:channel_name.txt ~data:(`Left, Styv_imply (tyv, sty)))
         | Some (`Right, sty) ->
@@ -377,7 +375,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
     | M_branch_recv (cmd1, cmd2, channel_name) ->
       let%bind sess1 = backward ctxt sess cmd1 in
       let%bind sess2 = backward ctxt sess cmd2 in
-      Result.try_with (fun () ->
+      Or_error.try_with (fun () ->
           Map.merge sess1 sess2 ~f:(fun ~key -> function
               | `Left _
               | `Right _ -> assert false
@@ -395,7 +393,7 @@ let tycheck_cmd sty_ctxt psig_ctxt =
     | M_branch_send (_, cmd1, cmd2, channel_name) ->
       let%bind sess1 = backward ctxt sess cmd1 in
       let%bind sess2 = backward ctxt sess cmd2 in
-      Result.try_with (fun () ->
+      Or_error.try_with (fun () ->
           Map.merge sess1 sess2 ~f:(fun ~key -> function
               | `Left _
               | `Right _ -> assert false
@@ -413,14 +411,14 @@ let tycheck_cmd sty_ctxt psig_ctxt =
     | M_call (proc_name, _) ->
       begin
         match Map.find psig_ctxt proc_name.txt with
-        | None -> Error (Type_error ("unknown procedure " ^ proc_name.txt, proc_name.loc))
+        | None -> Or_error.of_exn (Type_error ("unknown procedure " ^ proc_name.txt, proc_name.loc))
         | Some psigv ->
           let sess0 = String.Map.of_alist_exn
               (List.append (Option.to_list psigv.psigv_sess_left) (Option.to_list psigv.psigv_sess_right)) in
           if not (Set.equal (Map.key_set sess0) (Map.key_set sess)) then
-            Error (Type_error ("mismatched channels", cmd.cmd_loc))
+            Or_error.of_exn (Type_error ("mismatched channels", cmd.cmd_loc))
           else
-            Result.try_with (fun () ->
+            Or_error.try_with (fun () ->
                 Map.merge sess0 sess ~f:(fun ~key:_ -> function
                     | `Left _
                     | `Right _ -> assert false
@@ -444,7 +442,6 @@ let tycheck_cmd sty_ctxt psig_ctxt =
        )
 
 let tycheck_proc sty_ctxt psig_ctxt proc =
-  let open Result.Let_syntax in
   let psigv = eval_proc_sig proc.proc_sig in
   let ctxt = String.Map.of_alist_exn psigv.psigv_param_tys in
   let%bind (tyv, sess_left, sess_right) = tycheck_cmd sty_ctxt psig_ctxt ctxt
@@ -452,21 +449,21 @@ let tycheck_proc sty_ctxt psig_ctxt proc =
       (Option.map psigv.psigv_sess_right ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       proc.proc_body in
   if not (is_subtype tyv psigv.psigv_ret_ty) then
-    Error (Type_error ("mismatched signature types", proc.proc_loc))
+    Or_error.of_exn (Type_error ("mismatched signature types", proc.proc_loc))
   else if Option.value_map sess_left ~default:false ~f:(fun (_, sty) ->
       let type_id = Option.value_exn psigv.psigv_sess_left |> snd in
       match Map.find sty_ctxt type_id with
       | None -> true
       | Some sty_def -> not (equal_sess_tyv sty sty_def)
     ) then
-    Error (Type_error ("mismatched left session", proc.proc_loc))
+    Or_error.of_exn (Type_error ("mismatched left session", proc.proc_loc))
   else if Option.value_map sess_right ~default:false ~f:(fun (_, sty) ->
       let type_id = Option.value_exn psigv.psigv_sess_right |> snd in
       match Map.find sty_ctxt type_id with
       | None -> true
       | Some sty_def -> not (equal_sess_tyv sty sty_def)
     ) then
-    Error (Type_error ("mismatched right session", proc.proc_loc))
+    Or_error.of_exn (Type_error ("mismatched right session", proc.proc_loc))
   else
     Ok ()
 

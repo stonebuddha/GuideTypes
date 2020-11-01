@@ -77,16 +77,6 @@ and exp_desc =
   | E_let of exp * variable_id * exp
   | E_dist of exp dist
 
-type value =
-  | V_triv
-  | V_bool of bool
-  | V_real of float
-  | V_nat of int
-  | V_clo of environment * variable_id * base_ty * exp
-  | V_dist of value dist
-
-and environment = value String.Map.t
-
 type cmd = {
   cmd_desc: cmd_desc;
   cmd_loc: Location.t;
@@ -130,7 +120,7 @@ type proc_sig = {
   psig_sess_right: (channel_id * type_id) option;
 }
 
-type proc_sig_val = {
+type proc_sigv = {
   psigv_param_tys: (string * base_tyv) list;
   psigv_ret_ty: base_tyv;
   psigv_sess_left: (string * string) option;

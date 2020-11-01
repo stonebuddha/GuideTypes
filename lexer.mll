@@ -91,9 +91,9 @@ let error lexbuf e = raise (Lexer_error (e, Location.curr lexbuf))
 
 let prepare_error loc = function
   | Illegal_character c ->
-    Location.errorf ~loc "Illegal character (%s)" (Char.escaped c)
+    Location.errorf ~loc "illegal character (%s)" (Char.escaped c)
   | Invalid_literal s ->
-    Location.errorf ~loc "Invalid literal %s" s
+    Location.errorf ~loc "invalid literal %s" s
 
 let () =
   Location.register_error_of_exn
