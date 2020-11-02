@@ -44,6 +44,11 @@ let compile_model prog =
       Compile.emit_prog_for_model Format.std_formatter prog
     )
 
+let compile_guide prog =
+  Timer.wrap_duration "emission" (fun () ->
+      Compile.emit_prog_for_guide Format.std_formatter prog
+    )
+
 let cmd_only_parse =
   Command.basic ~summary:"only parse" (
     let open Command.Let_syntax in
@@ -106,12 +111,30 @@ let cmd_compile_model =
       report_result result
   )
 
+let cmd_compile_guide =
+  Command.basic ~summary:"compile (g)" (
+    let open Command.Let_syntax in
+    let%map_open filename = anon ("filename" %: Filename.arg_type)
+    in
+    fun () ->
+      let result =
+        let open Or_error.Let_syntax in
+        let%bind prog = parse_file filename in
+        let%bind () = typecheck prog in
+        let iprog = anf prog in
+        let () = compile_guide iprog in
+        Ok iprog
+      in
+      report_result result
+  )
+
 let cmd_route =
   Command.group ~summary:"CommInfer" [
     ("only-parse", cmd_only_parse);
     ("type-check", cmd_type_check);
     ("normalize", cmd_normalize);
     ("compile-m", cmd_compile_model);
+    ("compile-g", cmd_compile_guide);
   ]
 
 let () =
