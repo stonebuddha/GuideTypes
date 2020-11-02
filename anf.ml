@@ -93,6 +93,10 @@ and normalize_dist dist cont =
     normalize_exp_name exp (fun nexp ->
         cont (D_geo nexp)
       )
+  | D_pois exp ->
+    normalize_exp_name exp (fun nexp ->
+        cont (D_pois nexp)
+      )
 
 and normalize_exp_name exp cont =
   normalize_exp exp (fun nexp ->
@@ -165,4 +169,5 @@ let normalize_prog prog =
   List.filter_map prog ~f:(function
       | Top_sess _ -> None
       | Top_proc (proc_name, proc) -> Some (proc_name.txt, normalize_proc proc)
+      | Top_external _ -> None
     )

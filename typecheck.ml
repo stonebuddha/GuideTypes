@@ -14,17 +14,22 @@ let is_prim_numeric = function
 
 let is_prim_subtype pty1 pty2 =
   match pty1, pty2 with
-  | Pty_unit, Pty_unit
-  | Pty_bool, Pty_bool
+  | Pty_unit, Pty_unit -> true
+  | Pty_bool, Pty_bool -> true
   | Pty_ureal, Pty_ureal
   | Pty_ureal, Pty_preal
-  | Pty_ureal, Pty_real
+  | Pty_ureal, Pty_real -> true
   | Pty_preal, Pty_preal
-  | Pty_preal, Pty_real
-  | Pty_real, Pty_real
-  | Pty_fnat _, Pty_nat
-  | Pty_nat, Pty_nat -> true
+  | Pty_preal, Pty_real -> true
+  | Pty_real, Pty_real -> true
   | Pty_fnat n, Pty_fnat m -> n <= m
+  | Pty_fnat _, Pty_nat -> true
+  | Pty_fnat n, Pty_ureal -> n <= 2
+  | Pty_fnat _, Pty_preal
+  | Pty_fnat _, Pty_real -> true
+  | Pty_nat, Pty_nat
+  | Pty_nat, Pty_preal
+  | Pty_nat, Pty_real -> true
   | _ -> false
 
 let rec is_subtype tyv1 tyv2 =
@@ -267,6 +272,12 @@ and tycheck_dist ~loc ctxt dist =
       Ok (Btyv_prim Pty_nat)
     else
       Or_error.of_exn (Type_error ("mismatched parameter types", loc))
+  | D_pois exp ->
+    let%bind tyv = tycheck_exp ctxt exp in
+    if is_subtype tyv (Btyv_prim Pty_preal) then
+      Ok (Btyv_prim Pty_nat)
+    else
+      Or_error.of_exn (Type_error ("mismatched parameter types", loc))
 
 let rec eval_sty sty =
   match sty.sty_desc with
@@ -283,6 +294,7 @@ let collect_sess_tys prog =
       match top with
       | Top_proc _ -> None
       | Top_sess (type_name, sty) -> Some (type_name.txt, Option.map ~f:eval_sty sty)
+      | Top_external _ -> None
     ))
 
 let eval_proc_sig psig =
@@ -297,7 +309,16 @@ let collect_proc_sigs prog =
       match top with
       | Top_sess _ -> None
       | Top_proc (proc_name, { proc_sig; _ }) -> Some (proc_name.txt, eval_proc_sig proc_sig)
+      | Top_external _ -> None
     ))
+
+let collect_externals prog =
+  List.filter_map prog ~f:(fun top ->
+      match top with
+      | Top_sess _ -> None
+      | Top_proc _ -> None
+      | Top_external (var_name, ty) -> Some (var_name.txt, eval_ty ty)
+    )
 
 let tycheck_cmd psig_ctxt =
   let rec forward ctxt cmd =
@@ -469,9 +490,9 @@ let tycheck_cmd psig_ctxt =
         Option.map sess_right ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty))
        )
 
-let tycheck_proc sty_ctxt psig_ctxt proc =
+let tycheck_proc sty_ctxt psig_ctxt ext_ctxt proc =
   let psigv = eval_proc_sig proc.proc_sig in
-  let%bind ctxt = String.Map.of_alist_or_error psigv.psigv_param_tys in
+  let%bind ctxt = String.Map.of_alist_or_error (List.append ext_ctxt psigv.psigv_param_tys) in
   let%bind (tyv, sess_left, sess_right) = tycheck_cmd psig_ctxt ctxt
       (Option.map psigv.psigv_sess_left ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       (Option.map psigv.psigv_sess_right ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
@@ -528,6 +549,7 @@ let rec verify_sess_ty sty_ctxt sty =
 let tycheck_prog prog =
   let%bind sty_ctxt = collect_sess_tys prog in
   let%bind psig_ctxt = collect_proc_sigs prog in
+  let ext_ctxt = collect_externals prog in
   List.fold_result prog ~init:() ~f:(fun () top ->
       match top with
       | Top_sess (_, sty) ->
@@ -539,7 +561,8 @@ let tycheck_prog prog =
             | Sty_var _ -> Or_error.of_exn (Type_error ("non-contractive type", sty.sty_loc))
             | _ -> verify_sess_ty sty_ctxt sty
         end
-      | Top_proc (_, proc) -> tycheck_proc sty_ctxt psig_ctxt proc
+      | Top_proc (_, proc) -> tycheck_proc sty_ctxt psig_ctxt ext_ctxt proc
+      | Top_external _ -> Ok ()
     )
 
 let () =

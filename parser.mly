@@ -46,6 +46,7 @@ let mkcmd ~loc cmd_desc = {
 %token END
 %token EOF
 %token EQUAL
+%token EXTERNAL
 %token FALSE
 %token <float> FLOATV
 %token FN
@@ -73,6 +74,7 @@ let mkcmd ~loc cmd_desc = {
 %token OBSERVE
 %token OR
 %token PLUS
+%token POIS
 %token PREAL
 %token PROC
 %token RBRACE
@@ -120,6 +122,8 @@ toplevel:
     { Top_sess (sty_name, None) }
   | PROC; proc_name = mkloc(UIDENT); proc_sig = proc_sig; EQUAL; proc_body = cmd
     { Top_proc (proc_name, { proc_sig; proc_body; proc_loc = make_loc $sloc }) }
+  | EXTERNAL; var_name = mkloc(LIDENT); COLON; ty = base_ty
+    { Top_external (var_name, ty) }
 
 proc_sig:
   | LPAREN; psig_param_tys = separated_list(SEMI, param_ty); RPAREN; MINUSGREATER; psig_ret_ty = base_ty; BAR; psig_sess_left = chtype; BAR; psig_sess_right = chtype
@@ -283,6 +287,8 @@ dist(RHS):
     { D_cat args }
   | GEO; LPAREN; arg = RHS; RPAREN
     { D_geo arg }
+  | POIS; LPAREN; arg = RHS; RPAREN
+    { D_pois arg }
 
 cmd:
   | LBRACE; cmd = cmd; RBRACE

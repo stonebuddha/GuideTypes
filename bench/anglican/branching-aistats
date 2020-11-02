@@ -1,0 +1,26 @@
+type Latent
+type Observation
+
+external fib: nat -> nat
+
+proc Branching() -> nat | lat : Latent | obs : Observation = {
+  r <- observe{lat}(POIS(4.));
+  l <- {
+    if{lat} 4 < r then
+      return 6
+    else
+      t <- observe{lat}(POIS(4.));
+      return (t + fib(3 * r))
+  };
+  y <- sample{obs}(POIS(l));
+  return r
+}
+
+proc Guide() -> unit | . | lat : Latent = {
+  r <- sample{lat}(GEO(0.125));
+  if{lat} . then
+    return ()
+  else
+    t <- sample{lat}(GEO(0.125));
+    return ()
+}

@@ -17,6 +17,7 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("dist", DIST);
   ("else", ELSE);
   ("end", END);
+  ("external", EXTERNAL);
   ("false", FALSE);
   ("fn", FN);
   ("if", IF);
@@ -70,6 +71,7 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("NORMAL", NORMAL);
   ("CAT", CAT);
   ("GEO", GEO);
+  ("POIS", POIS);
 ]
 
 (* Update the current location with file name and line number. *)

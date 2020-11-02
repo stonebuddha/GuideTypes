@@ -58,6 +58,7 @@ type 'a dist =
   | D_normal of 'a * 'a
   | D_cat of 'a list
   | D_geo of 'a
+  | D_pois of 'a
 
 type exp = {
   exp_desc: exp_desc;
@@ -137,5 +138,6 @@ type proc = {
 type sess_or_proc =
   | Top_sess of type_id * sess_ty option
   | Top_proc of procedure_id * proc
+  | Top_external of variable_id * base_ty
 
 type prog = sess_or_proc list

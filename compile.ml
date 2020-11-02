@@ -37,6 +37,7 @@ and emit_dist fmt = function
     Format.fprintf fmt "dist.Categorical(torch.tensor([%a]))"
       (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp) exps
   | D_geo exp -> Format.fprintf fmt "dist.Geometric(%a)" emit_aexp exp
+  | D_pois exp -> Format.fprintf fmt "dist.Poisson(%a)" emit_aexp exp
 
 let emit_ret_or_bnd ?bind lev fmt =
   match bind with
@@ -157,12 +158,19 @@ let emit_proc ~comm lev fmt (proc_name, proc) =
     proc.iproc_body
 
 let emit_prog_for_model fmt prog =
-  List.iter prog ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:None "") top)
+  let (model_proc_name, model_proc) = List.hd_exn prog in
+  Format.fprintf fmt
+    "def Original_%s(%a):@."
+    model_proc_name
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") String.pp) (model_proc.iproc_sig.ipsig_params);
+  List.iter prog ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:None "\t") top);
+  Format.fprintf fmt "@.";
+  Format.fprintf fmt "%s%s()@." "\t" model_proc_name
 
 let emit_prog_for_guide fmt prog =
   let (model_proc_name, model_proc) = List.hd_exn prog in
   Format.fprintf fmt
-    "def Comm_for_%s(%a):@."
+    "def Importance_for_%s(%a):@."
     model_proc_name
     (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") String.pp) (model_proc.iproc_sig.ipsig_params);
   let comm_l = String.Map.of_alist_exn (List.filter_map prog ~f:(fun (proc_name, proc) -> Option.map proc.iproc_sig.ipsig_sess_left ~f:(fun channel_name -> (channel_name, proc_name)))) in
@@ -172,3 +180,8 @@ let emit_prog_for_guide fmt prog =
   List.iter prog ~f:(fun (proc_name, _) -> Format.fprintf fmt "%shelper_%s = greenlet(%s)@." "\t" proc_name proc_name);
   Format.fprintf fmt "@.";
   Format.fprintf fmt "%shelper_%s.switch()@." "\t" model_proc_name
+
+let emit_prog_for_importance fmt prog =
+  emit_prog_for_model fmt prog;
+  Format.fprintf fmt "@.";
+  emit_prog_for_guide fmt prog

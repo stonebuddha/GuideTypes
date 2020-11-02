@@ -1,0 +1,9 @@
+type Observation
+
+proc PoissonTrace(l: ureal; k: nat; p: ureal) -> nat | . | obs : Observation = {
+  u <- sample{obs}(UNIF);
+  if{obs} p * u <= l then
+    return k
+  else
+    PoissonTrace(l; k + 1; p * u)
+}
