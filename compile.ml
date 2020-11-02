@@ -47,41 +47,60 @@ let emit_ret_or_bnd ?bind lev fmt =
   | Some None ->
     Format.fprintf fmt "%s%a@." lev
 
-let rec emit_cexp ?bind lev fmt = function
+let rec emit_cexp ~extra ?bind lev fmt = function
   | CE_app (exp1, exp2) ->
     emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "%a(%a)" emit_aexp exp1 emit_aexp exp2) ()
   | CE_call (proc_name, exps) ->
     emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "%s(%a)" proc_name
-                                      (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp) exps) ()
+                                      (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp)
+                                      (List.append exps (List.map extra ~f:(fun var_name -> AE_var var_name)))) ()
   | CE_cond (exp0, exp1, exp2) ->
-    Format.fprintf fmt "%sif %a:@.%a%selse:@.%a" lev emit_aexp exp0 (emit_iexp ?bind (lev ^ "\t")) exp1 lev (emit_iexp ?bind (lev ^ "\t")) exp2
+    Format.fprintf fmt "%sif %a:@.%a%selse:@.%a" lev emit_aexp exp0 (emit_iexp ~extra ?bind (lev ^ "\t")) exp1 lev (emit_iexp ~extra ?bind (lev ^ "\t")) exp2
 
-  | CE_sample_recv (exp0, _) ->
-    emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "pyro.sample(%a)" emit_aexp exp0) ()
-  | CE_sample_send (exp0, _) ->
-    emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "pyro.sample(%a)" emit_aexp exp0) ()
+  | CE_sample_recv (exp0, channel_name) ->
+    Format.fprintf fmt "%s%s += 1@." lev ("_" ^ channel_name ^ "cnt");
+    emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)" channel_name ("_" ^ channel_name ^ "cnt") emit_aexp exp0) ()
+  | CE_sample_send (exp0, channel_name) ->
+    Format.fprintf fmt "%s%s += 1@." lev ("_" ^ channel_name ^ "cnt");
+    emit_ret_or_bnd ?bind lev fmt (fun fmt () ->
+        Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)"
+          channel_name
+          ("_" ^ channel_name ^ "cnt")
+          emit_aexp exp0
+      ) ()
 
   | CE_cond_recv (exp1, exp2, _) ->
-    Format.fprintf fmt "%sif nondet:@.%a%selse:@.%a" lev (emit_iexp ?bind (lev ^ "\t")) exp1 lev (emit_iexp ?bind (lev ^ "\t")) exp2
+    Format.fprintf fmt "%sif yield:@.%a%selse:@.%a" lev (emit_iexp ~extra ?bind (lev ^ "\t")) exp1 lev (emit_iexp ~extra ?bind (lev ^ "\t")) exp2
   | CE_cond_send (exp0, exp1, exp2, _) ->
-    Format.fprintf fmt "%sif %a:@.%a%selse:@.%a" lev emit_aexp exp0 (emit_iexp ?bind (lev ^ "\t")) exp1 lev (emit_iexp ?bind (lev ^ "\t")) exp2
+    Format.fprintf fmt "%sif %a:@.%a%selse:@.%a" lev emit_aexp exp0 (emit_iexp ~extra ?bind (lev ^ "\t")) exp1 lev (emit_iexp ~extra ?bind (lev ^ "\t")) exp2
 
-and emit_aexp_or_cexp ?bind lev fmt =
-  Either.value_map ~first:(emit_ret_or_bnd ?bind lev fmt emit_aexp) ~second:(emit_cexp ?bind lev fmt)
+and emit_aexp_or_cexp ~extra ?bind lev fmt =
+  Either.value_map ~first:(emit_ret_or_bnd ?bind lev fmt emit_aexp) ~second:(emit_cexp ~extra ?bind lev fmt)
 
-and emit_iexp ?bind lev fmt = function
-  | IE_tail exp -> emit_aexp_or_cexp ?bind lev fmt exp
+and emit_iexp ~extra ?bind lev fmt = function
+  | IE_tail exp -> emit_aexp_or_cexp ~extra ?bind lev fmt exp
   | IE_let (exp1, var_name, exp2) ->
-    emit_aexp_or_cexp ~bind:var_name lev fmt exp1;
-    emit_iexp ?bind lev fmt exp2
+    emit_aexp_or_cexp ~extra ~bind:var_name lev fmt exp1;
+    emit_iexp ~extra ?bind lev fmt exp2
 
 let emit_proc fmt (proc_name, proc) =
+  let extra = List.map
+      (List.append (Option.to_list proc.iproc_sig.ipsig_sess_left) (Option.to_list proc.iproc_sig.ipsig_sess_right))
+      ~f:(fun channel_name -> "_" ^ channel_name ^ "cnt")
+  in
   Format.fprintf fmt
     "def %s(%a):@.%a"
     proc_name
-    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") String.pp) proc.iproc_sig.ipsig_params
-    (emit_iexp "\t") proc.iproc_body
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") String.pp) (List.append proc.iproc_sig.ipsig_params (List.map extra ~f:(fun param -> param ^ "=-1")))
+    (emit_iexp ~extra "\t")
+    proc.iproc_body
 
-let emit_prog fmt prog =
-  Format.fprintf fmt "from greenlet import greenlet@.import torch@.import pyro@.import pyro.distributions as dist@.";
+let emit_prog_for_model fmt prog =
   List.iter prog ~f:(fun top -> Format.fprintf fmt "@.%a" emit_proc top)
+
+let emit_prog_for_guide fmt prog =
+  let (model_proc_name, model_proc) = List.hd_exn prog in
+  Format.fprintf fmt
+    "def Comm_for_%s(%a):@."
+    model_proc_name
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") String.pp) (model_proc.iproc_sig.ipsig_params)

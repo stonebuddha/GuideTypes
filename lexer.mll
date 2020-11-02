@@ -106,7 +106,7 @@ let () =
 
 let newline = ('\013'* '\010')
 let blank = [' ' '\009' '\012']
-let lowercase = ['a'-'z' '_']
+let lowercase = ['a'-'z']
 let uppercase = ['A'-'Z']
 let identchar = ['A'-'Z' 'a'-'z' '_' '\'' '0'-'9']
 
