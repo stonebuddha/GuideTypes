@@ -65,6 +65,7 @@ let mkcmd ~loc cmd_desc = {
 %token LESSEQUAL
 %token LESSMINUS
 %token <string> LIDENT
+%token LOOP
 %token LPAREN
 %token MINUS
 %token MINUSGREATER
@@ -85,6 +86,8 @@ let mkcmd ~loc cmd_desc = {
 %token SAMPLE
 %token SEMI
 %token SLASH
+%token STACK
+%token TENSOR
 %token THEN
 %token TRUE
 %token TYPE
@@ -175,6 +178,8 @@ base_prim_ty:
       { Bty_prim pty }
     | bty = base_prim_ty; DIST
       { Bty_dist bty }
+    | LPAREN; pty = prim_ty; SEMI; LBRACKET; dims = separated_list(SEMI, INTV); RBRACKET; RPAREN; TENSOR
+      { Bty_tensor (pty, dims) }
     )
     { $1 }
 
@@ -269,6 +274,10 @@ prim_exp:
       { E_let (exp1, var_name, exp2) }
     | dist = dist(exp)
       { E_dist dist }
+    | TENSOR; LPAREN; exp0 = exp; RPAREN
+      { E_tensor exp0 }
+    | STACK; LPAREN; exps = separated_nonempty_list(SEMI, exp); RPAREN
+      { E_stack exps }
     )
     { $1 }
 
@@ -312,5 +321,7 @@ cmd:
       { M_branch_recv (cmd1, cmd2, channel_name) }
     | IF; exp = exp; THEN; cmd1 = cmd; ELSE; cmd2 = cmd
       { M_branch_self (exp, cmd1, cmd2) }
+    | LOOP; LBRACKET; n = INTV; SEMI; init_exp = exp; RBRACKET; LPAREN; FN; bind_name = mkloc(LIDENT); MINUSGREATER; cmd0 = cmd; RPAREN
+      { M_loop (n, init_exp, bind_name, cmd0) }
     )
     { $1 }

@@ -23,6 +23,7 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("if", IF);
   ("in", IN);
   ("let", LET);
+  ("loop", LOOP);
   ("nat", NAT);
   ("observe", OBSERVE);
   ("or", OR);
@@ -31,6 +32,8 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("return", RETURN);
   ("real", REAL);
   ("sample", SAMPLE);
+  ("stack", STACK);
+  ("tensor", TENSOR);
   ("then", THEN);
   ("true", TRUE);
   ("type", TYPE);

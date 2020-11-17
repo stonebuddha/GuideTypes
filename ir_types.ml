@@ -7,6 +7,8 @@ type aexp =
   | AE_binop of Ast_types.binop * aexp * aexp
   | AE_abs of string * iexp
   | AE_dist of aexp Ast_types.dist
+  | AE_tensor of aexp
+  | AE_stack of aexp list
 
 and cexp =
   | CE_app of aexp * aexp

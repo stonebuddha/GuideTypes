@@ -51,6 +51,22 @@ let rec normalize_exp exp cont =
   | E_dist dist ->
     normalize_dist dist (fun ndist -> cont (Either.first (AE_dist ndist)))
 
+  | E_tensor exp0 ->
+    normalize_exp_name exp0 (fun nexp0 -> cont (Either.first (AE_tensor nexp0)))
+
+  | E_stack exps ->
+    let rec inner l c =
+      match l with
+      | [] -> c []
+      | h :: t ->
+        normalize_exp_name h (fun nh ->
+            inner t (fun nt ->
+                c (nh :: nt)
+              )
+          )
+    in
+    inner exps (fun nexps -> cont (Either.first (AE_stack nexps)))
+
 and normalize_dist dist cont =
   match dist with
   | D_ber exp ->
@@ -150,6 +166,8 @@ let rec normalize_cmd cmd cont =
     normalize_exp_name exp0 (fun nexp0 ->
         cont (Either.second (CE_cond (nexp0, normalize_cmd_term cmd1, normalize_cmd_term cmd2)))
       )
+
+  | M_loop _ -> failwith "loop conversion: not implemented"
 
 and normalize_cmd_term cmd =
   normalize_cmd cmd (fun nexp -> IE_tail nexp)

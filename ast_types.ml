@@ -29,11 +29,13 @@ and base_ty_desc =
   | Bty_prim of prim_ty
   | Bty_arrow of base_ty * base_ty
   | Bty_dist of base_ty
+  | Bty_tensor of prim_ty * int list
 
 type base_tyv =
   | Btyv_prim of prim_ty
   | Btyv_arrow of base_tyv * base_tyv
   | Btyv_dist of base_tyv
+  | Btyv_tensor of prim_ty * int list
 [@@deriving equal]
 
 type binop =
@@ -77,6 +79,8 @@ and exp_desc =
   | E_app of exp * exp
   | E_let of exp * variable_id * exp
   | E_dist of exp dist
+  | E_tensor of exp
+  | E_stack of exp list
 
 type cmd = {
   cmd_desc: cmd_desc;
@@ -92,6 +96,7 @@ and cmd_desc =
   | M_branch_recv of cmd * cmd * channel_id
   | M_branch_send of exp * cmd * cmd * channel_id
   | M_branch_self of exp * cmd * cmd
+  | M_loop of int * exp * variable_id * cmd
 
 type sess_ty = {
   sty_desc: sess_ty_desc;

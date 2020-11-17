@@ -25,6 +25,9 @@ let rec emit_aexp fmt = function
   | AE_binop (bop, exp1, exp2) ->
     Format.fprintf fmt "(%a %a %a)" emit_aexp exp1 emit_bop bop emit_aexp exp2
   | AE_dist dist -> Format.fprintf fmt "%a" emit_dist dist
+  | AE_tensor exp0 -> Format.fprintf fmt "torch.tensor(%a)" emit_aexp exp0
+  | AE_stack exps -> Format.fprintf fmt "torch.stack((%a))"
+                       (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp) exps
   | AE_abs _ -> failwith "closure conversion: not implemented"
 
 and emit_dist fmt = function

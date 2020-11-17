@@ -37,6 +37,7 @@ let rec is_subtype tyv1 tyv2 =
   | Btyv_prim pty1, Btyv_prim pty2 -> is_prim_subtype pty1 pty2
   | Btyv_dist tyv1', Btyv_dist tyv2' -> equal_base_tyv tyv1' tyv2'
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) -> is_subtype tyv21 tyv11 && is_subtype tyv12 tyv22
+  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) -> is_prim_subtype pty1 pty2
   | _ -> false
 
 let join_prim ~loc pty1 pty2 =
@@ -69,6 +70,9 @@ let rec join_type ~loc tyv1 tyv2 =
     let%bind tyv1' = meet_type ~loc tyv11 tyv21 in
     let%bind tyv2' = join_type ~loc tyv12 tyv22 in
     Ok (Btyv_arrow (tyv1', tyv2'))
+  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) ->
+    let%bind pty = join_prim ~loc pty1 pty2 in
+    Ok (Btyv_tensor (pty, dims1))
   | _ ->
     Or_error.of_exn (Type_error ("join error", loc))
 
@@ -86,6 +90,9 @@ and meet_type ~loc tyv1 tyv2 =
     let%bind tyv1' = join_type ~loc tyv11 tyv21 in
     let%bind tyv2' = meet_type ~loc tyv12 tyv22 in
     Ok (Btyv_arrow (tyv1', tyv2'))
+  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) ->
+    let%bind pty = meet_prim ~loc pty1 pty2 in
+    Ok (Btyv_tensor (pty, dims1))
   | _ ->
     Or_error.of_exn (Type_error ("meet error", loc))
 
@@ -94,74 +101,79 @@ let rec eval_ty ty =
   | Bty_prim pty -> Btyv_prim pty
   | Bty_arrow (ty1, ty2) -> Btyv_arrow (eval_ty ty1, eval_ty ty2)
   | Bty_dist ty0 -> Btyv_dist (eval_ty ty0)
+  | Bty_tensor (pty, dims) -> Btyv_tensor (pty, dims)
+
+let tycheck_bop_prim bop pty1 pty2 =
+  match bop.txt, pty1, pty2 with
+  | Bop_add, Pty_ureal, Pty_ureal
+  | Bop_add, Pty_ureal, Pty_preal -> Ok Pty_preal
+  | Bop_add, Pty_ureal, Pty_real -> Ok Pty_real
+  | Bop_add, Pty_preal, Pty_ureal
+  | Bop_add, Pty_preal, Pty_preal -> Ok Pty_preal
+  | Bop_add, Pty_preal, Pty_real -> Ok Pty_real
+  | Bop_add, Pty_real, Pty_ureal
+  | Bop_add, Pty_real, Pty_preal
+  | Bop_add, Pty_real, Pty_real -> Ok Pty_real
+  | Bop_add, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n + m))
+  | Bop_add, Pty_fnat _, Pty_nat -> Ok Pty_nat
+  | Bop_add, Pty_nat, Pty_fnat _
+  | Bop_add, Pty_nat, Pty_nat -> Ok Pty_nat
+
+  | Bop_sub, Pty_ureal, Pty_ureal
+  | Bop_sub, Pty_ureal, Pty_preal
+  | Bop_sub, Pty_ureal, Pty_real -> Ok Pty_real
+  | Bop_sub, Pty_preal, Pty_ureal
+  | Bop_sub, Pty_preal, Pty_preal
+  | Bop_sub, Pty_preal, Pty_real -> Ok Pty_real
+  | Bop_sub, Pty_real, Pty_ureal
+  | Bop_sub, Pty_real, Pty_preal
+  | Bop_sub, Pty_real, Pty_real -> Ok Pty_real
+
+  | Bop_mul, Pty_ureal, Pty_ureal -> Ok Pty_ureal
+  | Bop_mul, Pty_ureal, Pty_preal -> Ok Pty_preal
+  | Bop_mul, Pty_ureal, Pty_real -> Ok Pty_real
+  | Bop_mul, Pty_preal, Pty_ureal
+  | Bop_mul, Pty_preal, Pty_preal -> Ok Pty_preal
+  | Bop_mul, Pty_preal, Pty_real -> Ok Pty_real
+  | Bop_mul, Pty_real, Pty_ureal
+  | Bop_mul, Pty_real, Pty_preal
+  | Bop_mul, Pty_real, Pty_real -> Ok Pty_real
+  | Bop_mul, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n * m))
+  | Bop_mul, Pty_fnat _, Pty_nat -> Ok Pty_nat
+  | Bop_mul, Pty_nat, Pty_fnat _
+  | Bop_mul, Pty_nat, Pty_nat -> Ok Pty_nat
+
+  | Bop_div, Pty_ureal, Pty_ureal
+  | Bop_div, Pty_ureal, Pty_preal -> Ok Pty_preal
+  | Bop_div, Pty_ureal, Pty_real -> Ok Pty_real
+  | Bop_div, Pty_preal, Pty_ureal
+  | Bop_div, Pty_preal, Pty_preal -> Ok Pty_preal
+  | Bop_div, Pty_preal, Pty_real -> Ok Pty_real
+  | Bop_div, Pty_real, Pty_ureal
+  | Bop_div, Pty_real, Pty_preal
+  | Bop_div, Pty_real, Pty_real -> Ok Pty_real
+
+  | Bop_eq, pty1, pty2
+  | Bop_ne, pty1, pty2 when is_prim_subtype pty1 pty2 || is_prim_subtype pty2 pty1 -> Ok Pty_bool
+
+  | Bop_lt, pty1, pty2
+  | Bop_le, pty1, pty2
+  | Bop_gt, pty1, pty2
+  | Bop_ge, pty1, pty2 when is_prim_numeric pty1 && (is_prim_subtype pty1 pty2 || is_prim_subtype pty2 pty1) -> Ok Pty_bool
+
+  | Bop_and, Pty_bool, Pty_bool
+  | Bop_or, Pty_bool, Pty_bool -> Ok Pty_bool
+
+  | _ -> Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
 
 let tycheck_bop bop arg1 arg2 =
   match arg1, arg2 with
   | Btyv_prim pty1, Btyv_prim pty2 ->
-    let%bind res =
-      match bop.txt, pty1, pty2 with
-      | Bop_add, Pty_ureal, Pty_ureal
-      | Bop_add, Pty_ureal, Pty_preal -> Ok Pty_preal
-      | Bop_add, Pty_ureal, Pty_real -> Ok Pty_real
-      | Bop_add, Pty_preal, Pty_ureal
-      | Bop_add, Pty_preal, Pty_preal -> Ok Pty_preal
-      | Bop_add, Pty_preal, Pty_real -> Ok Pty_real
-      | Bop_add, Pty_real, Pty_ureal
-      | Bop_add, Pty_real, Pty_preal
-      | Bop_add, Pty_real, Pty_real -> Ok Pty_real
-      | Bop_add, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n + m))
-      | Bop_add, Pty_fnat _, Pty_nat -> Ok Pty_nat
-      | Bop_add, Pty_nat, Pty_fnat _
-      | Bop_add, Pty_nat, Pty_nat -> Ok Pty_nat
-
-      | Bop_sub, Pty_ureal, Pty_ureal
-      | Bop_sub, Pty_ureal, Pty_preal
-      | Bop_sub, Pty_ureal, Pty_real -> Ok Pty_real
-      | Bop_sub, Pty_preal, Pty_ureal
-      | Bop_sub, Pty_preal, Pty_preal
-      | Bop_sub, Pty_preal, Pty_real -> Ok Pty_real
-      | Bop_sub, Pty_real, Pty_ureal
-      | Bop_sub, Pty_real, Pty_preal
-      | Bop_sub, Pty_real, Pty_real -> Ok Pty_real
-
-      | Bop_mul, Pty_ureal, Pty_ureal -> Ok Pty_ureal
-      | Bop_mul, Pty_ureal, Pty_preal -> Ok Pty_preal
-      | Bop_mul, Pty_ureal, Pty_real -> Ok Pty_real
-      | Bop_mul, Pty_preal, Pty_ureal
-      | Bop_mul, Pty_preal, Pty_preal -> Ok Pty_preal
-      | Bop_mul, Pty_preal, Pty_real -> Ok Pty_real
-      | Bop_mul, Pty_real, Pty_ureal
-      | Bop_mul, Pty_real, Pty_preal
-      | Bop_mul, Pty_real, Pty_real -> Ok Pty_real
-      | Bop_mul, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n * m))
-      | Bop_mul, Pty_fnat _, Pty_nat -> Ok Pty_nat
-      | Bop_mul, Pty_nat, Pty_fnat _
-      | Bop_mul, Pty_nat, Pty_nat -> Ok Pty_nat
-
-      | Bop_div, Pty_ureal, Pty_ureal
-      | Bop_div, Pty_ureal, Pty_preal -> Ok Pty_preal
-      | Bop_div, Pty_ureal, Pty_real -> Ok Pty_real
-      | Bop_div, Pty_preal, Pty_ureal
-      | Bop_div, Pty_preal, Pty_preal -> Ok Pty_preal
-      | Bop_div, Pty_preal, Pty_real -> Ok Pty_real
-      | Bop_div, Pty_real, Pty_ureal
-      | Bop_div, Pty_real, Pty_preal
-      | Bop_div, Pty_real, Pty_real -> Ok Pty_real
-
-      | Bop_eq, pty1, pty2
-      | Bop_ne, pty1, pty2 when is_prim_subtype pty1 pty2 || is_prim_subtype pty2 pty1 -> Ok Pty_bool
-
-      | Bop_lt, pty1, pty2
-      | Bop_le, pty1, pty2
-      | Bop_gt, pty1, pty2
-      | Bop_ge, pty1, pty2 when is_prim_numeric pty1 && (is_prim_subtype pty1 pty2 || is_prim_subtype pty2 pty1) -> Ok Pty_bool
-
-      | Bop_and, Pty_bool, Pty_bool
-      | Bop_or, Pty_bool, Pty_bool -> Ok Pty_bool
-
-      | _ -> Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
-    in
+    let%bind res = tycheck_bop_prim bop pty1 pty2 in
     Ok (Btyv_prim res)
+  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) ->
+    let%bind res = tycheck_bop_prim bop pty1 pty2 in
+    Ok (Btyv_tensor (res, dims1))
   | _ ->
     Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
 
@@ -223,6 +235,26 @@ let rec tycheck_exp ctxt exp =
   | E_dist dist ->
     let%bind tyv = tycheck_dist ~loc:exp.exp_loc ctxt dist in
     Ok (Btyv_dist tyv)
+  | E_tensor exp0 ->
+    let%bind tyv0 = tycheck_exp ctxt exp0 in
+    begin
+      match tyv0 with
+      | Btyv_prim pty -> Ok (Btyv_tensor (pty, []))
+      | _ -> Or_error.of_exn (Type_error ("non-primitive element type", exp0.exp_loc))
+    end
+  | E_stack exps ->
+    let n = List.length exps in
+    let%bind ptys = List.fold_result exps ~init:[] ~f:(fun acc exp ->
+        let%bind tyv = tycheck_exp ctxt exp in
+        match tyv with
+        | Btyv_tensor (pty, dims) -> Ok ((pty, dims) :: acc)
+        | _ -> Or_error.of_exn (Type_error ("non-tensor type", exp.exp_loc))
+      ) in
+    let (pty, dims) = List.hd_exn ptys in
+    if List.for_all ptys ~f:(fun (pty', dims') -> equal_prim_ty pty pty' && Poly.(dims = dims')) then
+      Ok (Btyv_tensor (pty, n :: dims))
+    else
+      Or_error.of_exn (Type_error ("not stackable", exp.exp_loc))
 
 and tycheck_dist ~loc ctxt dist =
   match dist with
@@ -375,6 +407,14 @@ let tycheck_cmd psig_ctxt =
         | _ ->
           Or_error.of_exn (Type_error ("non-boolean condition type", exp.exp_loc))
       end
+    | M_loop (_, init_exp, bind_name, cmd0) ->
+      let%bind tyv = tycheck_exp ctxt init_exp in
+      let ctxt' = Map.set ctxt ~key:bind_name.txt ~data:tyv in
+      let%bind tyv' = forward ctxt' cmd0 in
+      if is_subtype tyv' tyv then
+        Ok tyv
+      else
+        Or_error.of_exn (Type_error ("inconsistent result type in loop", cmd0.cmd_loc))
   in
   let rec backward ctxt sess cmd =
     match cmd.cmd_desc with
@@ -478,6 +518,11 @@ let tycheck_cmd psig_ctxt =
                   )
               )
       end
+    | M_loop (n, init_exp, bind_name, cmd0) ->
+      let%bind tyv = tycheck_exp ctxt init_exp in
+      let ctxt' = Map.set ctxt ~key:bind_name.txt ~data:tyv in
+      List.fold_result (List.init n ~f:(fun _ -> ())) ~init:sess
+        ~f:(fun acc () -> backward ctxt' acc cmd0)
   in
   fun ctxt sess_left sess_right cmd ->
     let%bind tyv = forward ctxt cmd in
