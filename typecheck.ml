@@ -196,9 +196,9 @@ let rec tycheck_exp ctxt exp =
     else
       Or_error.of_exn (Type_error ("non-boolean condition type", exp0.exp_loc))
   | E_real r ->
-    if Float.(r > 0. && r < 1.) then
+    if Float.(r >= 0. && r <= 1.) then
       Ok (Btyv_prim Pty_ureal)
-    else if Float.(r > 0.) then
+    else if Float.(r >= 0.) then
       Ok (Btyv_prim Pty_preal)
     else
       Ok (Btyv_prim Pty_real)
@@ -255,6 +255,27 @@ let rec tycheck_exp ctxt exp =
       Ok (Btyv_tensor (pty, n :: dims))
     else
       Or_error.of_exn (Type_error ("not stackable", exp.exp_loc))
+  | E_index (base_exp, index_exps) ->
+    let%bind base_tyv = tycheck_exp ctxt base_exp in
+    begin
+      match base_tyv with
+      | Btyv_tensor (pty, dims) ->
+        if List.length dims <> List.length index_exps then
+          Or_error.of_exn (Type_error ("mismatched dimension", exp.exp_loc))
+        else
+          let%bind () = List.fold_result (List.zip_exn dims index_exps) ~init:() ~f:(fun () (dim, index_exp) ->
+              let%bind index_tyv = tycheck_exp ctxt index_exp in
+              match index_tyv with
+              | Btyv_prim pty when is_prim_subtype pty (Pty_fnat dim) ->
+                Ok ()
+              | _ ->
+                Or_error.of_exn (Type_error ("invalid index", index_exp.exp_loc))
+            )
+          in
+          Ok (Btyv_prim pty)
+      | _ ->
+        Or_error.of_exn (Type_error ("not indexable", base_exp.exp_loc))
+    end
 
 and tycheck_dist ~loc ctxt dist =
   match dist with
@@ -298,6 +319,12 @@ and tycheck_dist ~loc ctxt dist =
       )
     in
     Ok (Btyv_prim (Pty_fnat n))
+  | D_bin (n, exp) ->
+    let%bind tyv = tycheck_exp ctxt exp in
+    if is_subtype tyv (Btyv_prim Pty_ureal) then
+      Ok (Btyv_prim (Pty_fnat n))
+    else
+      Or_error.of_exn (Type_error ("mismatched parameter types", loc))
   | D_geo exp ->
     let%bind tyv = tycheck_exp ctxt exp in
     if is_subtype tyv (Btyv_prim Pty_ureal) then
@@ -407,14 +434,39 @@ let tycheck_cmd psig_ctxt =
         | _ ->
           Or_error.of_exn (Type_error ("non-boolean condition type", exp.exp_loc))
       end
-    | M_loop (_, init_exp, bind_name, cmd0) ->
+    | M_loop (_, init_exp, bind_name, bind_ty, cmd0) ->
       let%bind tyv = tycheck_exp ctxt init_exp in
-      let ctxt' = Map.set ctxt ~key:bind_name.txt ~data:tyv in
-      let%bind tyv' = forward ctxt' cmd0 in
-      if is_subtype tyv' tyv then
-        Ok tyv
+      let bind_tyv = eval_ty bind_ty in
+      if is_subtype tyv bind_tyv then
+        let ctxt' = Map.set ctxt ~key:bind_name.txt ~data:bind_tyv in
+        let%bind tyv' = forward ctxt' cmd0 in
+        if is_subtype tyv' bind_tyv then
+          Ok bind_tyv
+        else
+          Or_error.of_exn (Type_error ("inconsistent result type in loop", cmd0.cmd_loc))
       else
-        Or_error.of_exn (Type_error ("inconsistent result type in loop", cmd0.cmd_loc))
+        Or_error.of_exn (Type_error ("inconsistent intial value for loop", init_exp.exp_loc))
+    | M_iter (iter_exp, init_exp, iter_name, bind_name, bind_ty, cmd0) ->
+      let%bind iter_tyv = tycheck_exp ctxt iter_exp in
+      begin
+        match iter_tyv with
+        | Btyv_tensor (pty, dims) when List.length dims > 0 ->
+          let elem_tyv = Btyv_tensor (pty, List.tl_exn dims) in
+          let%bind init_tyv = tycheck_exp ctxt init_exp in
+          let bind_tyv = eval_ty bind_ty in
+          if is_subtype init_tyv bind_tyv then
+            let ctxt' = Map.set ctxt ~key:iter_name.txt ~data:elem_tyv in
+            let ctxt'' = Map.set ctxt' ~key:bind_name.txt ~data:bind_tyv in
+            let%bind tyv' = forward ctxt'' cmd0 in
+            if is_subtype tyv' bind_tyv then
+              Ok bind_tyv
+            else
+              Or_error.of_exn (Type_error ("inconsistent result type in iter", cmd0.cmd_loc))
+          else
+            Or_error.of_exn (Type_error ("inconsistent initial value for iter", init_exp.exp_loc))
+        | _ ->
+          Or_error.of_exn (Type_error ("not iterable", iter_exp.exp_loc))
+      end
   in
   let rec backward ctxt sess cmd =
     match cmd.cmd_desc with
@@ -518,11 +570,25 @@ let tycheck_cmd psig_ctxt =
                   )
               )
       end
-    | M_loop (n, init_exp, bind_name, cmd0) ->
-      let%bind tyv = tycheck_exp ctxt init_exp in
-      let ctxt' = Map.set ctxt ~key:bind_name.txt ~data:tyv in
+    | M_loop (n, _, bind_name, bind_ty, cmd0) ->
+      let bind_tyv = eval_ty bind_ty in
+      let ctxt' = Map.set ctxt ~key:bind_name.txt ~data:bind_tyv in
       List.fold_result (List.init n ~f:(fun _ -> ())) ~init:sess
         ~f:(fun acc () -> backward ctxt' acc cmd0)
+    | M_iter (iter_exp, _, iter_name, bind_name, bind_ty, cmd0) ->
+      let%bind iter_tyv = tycheck_exp ctxt iter_exp in
+      begin
+        match iter_tyv with
+        | Btyv_tensor (pty, dims) when List.length dims > 0 ->
+          let elem_tyv = Btyv_tensor (pty, List.tl_exn dims) in
+          let bind_tyv = eval_ty bind_ty in
+          let ctxt' = Map.set ctxt ~key:iter_name.txt ~data:elem_tyv in
+          let ctxt'' = Map.set ctxt' ~key:bind_name.txt ~data:bind_tyv in
+          List.fold_result (List.init (List.hd_exn dims) ~f:(fun _ -> ())) ~init:sess
+            ~f:(fun acc () -> backward ctxt'' acc cmd0)
+        | _ ->
+          Or_error.of_exn (Type_error ("not iterable", iter_exp.exp_loc))
+      end
   in
   fun ctxt sess_left sess_right cmd ->
     let%bind tyv = forward ctxt cmd in

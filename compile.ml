@@ -28,6 +28,11 @@ let rec emit_aexp fmt = function
   | AE_tensor exp0 -> Format.fprintf fmt "torch.tensor(%a)" emit_aexp exp0
   | AE_stack exps -> Format.fprintf fmt "torch.stack((%a))"
                        (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp) exps
+  | AE_index (base_exp, index_exps) ->
+    Format.fprintf fmt "(%a)%a.item()" emit_aexp base_exp
+      (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "")
+         (fun fmt aexp -> Format.fprintf fmt "[%a]" emit_aexp aexp))
+      index_exps
   | AE_abs _ -> failwith "closure conversion: not implemented"
 
 and emit_dist fmt = function
@@ -39,6 +44,7 @@ and emit_dist fmt = function
   | D_cat exps ->
     Format.fprintf fmt "dist.Categorical(torch.tensor([%a]))"
       (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp) exps
+  | D_bin (n, exp) -> Format.fprintf fmt "dist.Binomial(%d, %a)" n emit_aexp exp
   | D_geo exp -> Format.fprintf fmt "dist.Geometric(%a)" emit_aexp exp
   | D_pois exp -> Format.fprintf fmt "dist.Poisson(%a)" emit_aexp exp
 

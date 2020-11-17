@@ -59,6 +59,7 @@ type 'a dist =
   | D_gamma of 'a * 'a
   | D_normal of 'a * 'a
   | D_cat of 'a list
+  | D_bin of int * 'a
   | D_geo of 'a
   | D_pois of 'a
 
@@ -81,6 +82,7 @@ and exp_desc =
   | E_dist of exp dist
   | E_tensor of exp
   | E_stack of exp list
+  | E_index of exp * exp list
 
 type cmd = {
   cmd_desc: cmd_desc;
@@ -96,7 +98,8 @@ and cmd_desc =
   | M_branch_recv of cmd * cmd * channel_id
   | M_branch_send of exp * cmd * cmd * channel_id
   | M_branch_self of exp * cmd * cmd
-  | M_loop of int * exp * variable_id * cmd
+  | M_loop of int * exp * variable_id * base_ty * cmd
+  | M_iter of exp * exp * variable_id * variable_id * base_ty * cmd
 
 type sess_ty = {
   sty_desc: sess_ty_desc;

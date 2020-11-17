@@ -1,0 +1,22 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=bayes-net
+
+type Latent
+type Observation
+
+proc Model() -> bool | lat : Latent | obs : Observation = {
+  is_cloudy <- observe{lat}(BER(0.5));
+  is_raining <- observe{lat}(if is_cloudy then BER(0.8) else BER(0.2));
+  sprinkler <- sample{obs}(if is_cloudy then BER(0.1) else BER(0.5));
+  wet_grass <- sample{obs}(
+      if sprinkler then
+        if is_raining then
+          BER(0.99)
+        else
+          BER(0.9)
+      else
+        if is_raining then
+          BER(0.9)
+        else
+          BER(0.0));
+  return is_raining
+}

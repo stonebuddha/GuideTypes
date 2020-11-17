@@ -36,6 +36,7 @@ let mkcmd ~loc cmd_desc = {
 %token BAR
 %token BER
 %token BETA
+%token BIN
 %token BOOL
 %token CAT
 %token COLON
@@ -57,6 +58,7 @@ let mkcmd ~loc cmd_desc = {
 %token IF
 %token IN
 %token <int> INTV
+%token ITER
 %token LBRACE
 %token LBRACKET
 %token LET
@@ -278,6 +280,8 @@ prim_exp:
       { E_tensor exp0 }
     | STACK; LPAREN; exps = separated_nonempty_list(SEMI, exp); RPAREN
       { E_stack exps }
+    | base_exp = prim_exp; LBRACKET; index_exps = separated_list(SEMI, exp); RBRACKET
+      { E_index (base_exp, index_exps) }
     )
     { $1 }
 
@@ -294,6 +298,8 @@ dist(RHS):
     { D_normal (arg1, arg2) }
   | CAT; LPAREN; args = separated_nonempty_list(SEMI, RHS); RPAREN
     { D_cat args }
+  | BIN; LPAREN; n = INTV; SEMI; arg = RHS; RPAREN
+    { D_bin (n, arg) }
   | GEO; LPAREN; arg = RHS; RPAREN
     { D_geo arg }
   | POIS; LPAREN; arg = RHS; RPAREN
@@ -321,7 +327,9 @@ cmd:
       { M_branch_recv (cmd1, cmd2, channel_name) }
     | IF; exp = exp; THEN; cmd1 = cmd; ELSE; cmd2 = cmd
       { M_branch_self (exp, cmd1, cmd2) }
-    | LOOP; LBRACKET; n = INTV; SEMI; init_exp = exp; RBRACKET; LPAREN; FN; bind_name = mkloc(LIDENT); MINUSGREATER; cmd0 = cmd; RPAREN
-      { M_loop (n, init_exp, bind_name, cmd0) }
+    | LOOP; LBRACKET; n = INTV; SEMI; init_exp = exp; RBRACKET; LPAREN; FN; LPAREN; bind_name = mkloc(LIDENT); COLON; ty = base_ty; RPAREN; MINUSGREATER; cmd0 = cmd; RPAREN
+      { M_loop (n, init_exp, bind_name, ty, cmd0) }
+    | ITER; LBRACKET; iter_exp = exp; SEMI; init_exp = exp; RBRACKET; LPAREN; FN; iter_name = mkloc(LIDENT); LPAREN; bind_name = mkloc(LIDENT); COLON; ty = base_ty; RPAREN; MINUSGREATER; cmd0 = cmd; RPAREN
+      { M_iter (iter_exp, init_exp, iter_name, bind_name, ty, cmd0) }
     )
     { $1 }

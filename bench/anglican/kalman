@@ -1,0 +1,32 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=kalman
+
+external mvn2: (real; [2]) tensor -> (real; [2; 2]) tensor -> (real; [2]) tensor dist
+external mvn20: (real; [20]) tensor -> (real; [20; 20]) tensor -> (real; [20]) tensor dist
+
+external zero_vector2: (real; [2]) tensor
+external zero_vector20: (real; [20]) tensor
+
+external mulmv2: (real; [2; 2]) tensor -> (real; [2]) tensor -> (real; [2]) tensor
+external mulmv20: (real; [20; 2]) tensor -> (real; [2]) tensor -> (real; [20]) tensor
+
+type Latent
+type Observation
+
+proc Model(
+  obs_matrix: (real; [20; 2]) tensor;
+  obs_cov: (real; [20; 20]) tensor;
+  trans_matrix: (real; [2; 2]) tensor;
+  trans_cov: (real; [2; 2]) tensor;
+  init_mean: (real; [2]) tensor;
+  init_cov: (real; [2; 2]) tensor
+) -> unit | lat : Latent | obs : Observation = {
+  start_dist <- { return mvn2(init_mean)(init_cov) };
+  trans_dist <- { return mvn2(zero_vector2)(trans_cov) };
+  start_state <- observe{lat}(start_dist);
+  _ <- loop[100; start_state] (fn (prev_state: (real; [2]) tensor) ->
+    trans <- observe{lat}(trans_dist);
+    next_state <- { return mulmv2(trans_matrix)(prev_state) + trans };
+    _ <- sample{obs}(mvn20(mulmv20(obs_matrix)(next_state))(obs_cov));
+    return next_state);
+  return ()
+}

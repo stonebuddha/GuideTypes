@@ -9,6 +9,7 @@ type aexp =
   | AE_dist of aexp Ast_types.dist
   | AE_tensor of aexp
   | AE_stack of aexp list
+  | AE_index of aexp * aexp list
 
 and cexp =
   | CE_app of aexp * aexp

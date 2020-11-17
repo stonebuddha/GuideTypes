@@ -1,0 +1,10 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=pencil-factory
+
+type Latent
+type Observation
+
+proc Model(a: preal; b: preal) -> ureal | lat : Latent | obs : Observation = {
+  p <- observe{lat}(BETA(a; b));
+  _ <- sample{obs}(BIN(7; p));
+  return p
+}

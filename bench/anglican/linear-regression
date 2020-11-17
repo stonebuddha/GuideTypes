@@ -1,0 +1,16 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=linear_regression
+
+type Latent
+type Observation
+
+proc Model(xs: (real; [6; 3]) tensor) -> (real; [3]) tensor | lat : Latent | obs : Observation = {
+  weight0 <- observe{lat}(NORMAL(0; 1));
+  weight1 <- observe{lat}(NORMAL(0; 1));
+  weight2 <- observe{lat}(NORMAL(0; 1));
+  sigma <- observe{lat}(GAMMA(1; 1));
+  predictive <- { return (fn (x: (real; [3]) tensor) -> NORMAL(weight0 * x[0] + weight1 * x[1] + weight2 * x[2]; sigma)) };
+  _ <- iter[xs; ()] (fn x (acc: unit) ->
+    _ <- sample{obs}(predictive(x));
+    return ());
+  return stack(tensor(weight0); tensor(weight1); tensor(weight2))
+}

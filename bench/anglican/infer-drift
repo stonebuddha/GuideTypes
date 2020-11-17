@@ -1,0 +1,13 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=irr-1
+
+type Latent
+type Observation
+
+proc Model() -> real | lat : Latent | obs : Observation = {
+  drift <- observe{lat}(NORMAL(0; 2));
+  noise <- observe{lat}(GAMMA(1; 1)); # EXPO(1)
+  _ <- loop[9; 10.0] (fn (pos: real) ->
+    _ <- sample{obs}(NORMAL(pos; noise));
+    return (pos + drift));
+  return drift
+}

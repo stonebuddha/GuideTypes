@@ -5,16 +5,16 @@ type Observation
 
 proc Model() -> nat | lat : Latent | obs : Observation = {
   fake_rate <- {
-    tmp <- observe{lat}(POIS(5.));
+    tmp <- observe{lat}(POIS(5));
     return (tmp + 1)
   };
   user_rate <- {
-    tmp <- observe{lat}(POIS(30.0));
+    tmp <- observe{lat}(POIS(30));
     return (tmp + 1)
   };
   faking <- { return BER(0.05) };
   is_faking <- observe{lat}(faking);
-  final_is_faking <- loop[5; is_faking] (fn is_faking ->
+  final_is_faking <- loop[5; is_faking] (fn (is_faking: bool) ->
     new_is_faking <- observe{lat}(faking);
     _ <- sample{obs}(POIS(if is_faking then fake_rate else user_rate));
     return (is_faking or new_is_faking));

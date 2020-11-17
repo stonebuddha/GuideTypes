@@ -1,0 +1,13 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=gaussian-posteriors
+
+type Latent
+type Observation
+
+proc Model() -> real | lat : Latent | obs : Observation = {
+  mu <- observe{lat}(NORMAL(0; 50));
+  _ <- loop[7; ()] (fn (acc: unit) ->
+    noise_level <- observe{lat}(UNIF);
+    _ <- sample{obs}(NORMAL(mu; noise_level * 25.0));
+    return ());
+  return mu
+}

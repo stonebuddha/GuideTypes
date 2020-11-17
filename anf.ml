@@ -67,6 +67,21 @@ let rec normalize_exp exp cont =
     in
     inner exps (fun nexps -> cont (Either.first (AE_stack nexps)))
 
+  | E_index (base_exp, index_exps) ->
+    normalize_exp_name base_exp (fun base_nexp ->
+        let rec inner l c =
+          match l with
+          | [] -> c []
+          | h :: t ->
+            normalize_exp_name h (fun nh ->
+                inner t (fun nt ->
+                    c (nh :: nt)
+                  )
+              )
+        in
+        inner index_exps (fun index_nexps -> cont (Either.first (AE_index (base_nexp, index_nexps))))
+      )
+
 and normalize_dist dist cont =
   match dist with
   | D_ber exp ->
@@ -105,6 +120,10 @@ and normalize_dist dist cont =
           )
     in
     inner exps (fun nexps -> cont (D_cat nexps))
+  | D_bin (n, exp) ->
+    normalize_exp_name exp (fun nexp ->
+        cont (D_bin (n, nexp))
+      )
   | D_geo exp ->
     normalize_exp_name exp (fun nexp ->
         cont (D_geo nexp)
@@ -167,7 +186,7 @@ let rec normalize_cmd cmd cont =
         cont (Either.second (CE_cond (nexp0, normalize_cmd_term cmd1, normalize_cmd_term cmd2)))
       )
 
-  | M_loop _ -> failwith "loop conversion: not implemented"
+  | M_loop _ | M_iter _ -> failwith "loop/iter conversion: not implemented"
 
 and normalize_cmd_term cmd =
   normalize_cmd cmd (fun nexp -> IE_tail nexp)

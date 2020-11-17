@@ -1,0 +1,21 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=irr-2
+
+external log: preal -> real
+external gp_new: (real -> real) -> (real -> real -> real) -> real -> real dist
+
+type Latent
+type Observation
+
+proc Model(times: (real; [9]) tensor) -> real | lat : Latent | obs : Observation = {
+  const <- { return log(10) };
+  mu <- observe{lat}(NORMAL(0; 1.0 / 3.0));
+  delta <- { return 0.1 };
+  drift <- { return (mu - (0.5 * delta * delta)) };
+  m <- { return (fn (t: real) -> (const + (t * drift))) };
+  k <- { return (fn (s: real) -> fn (t: real) -> (delta * delta * (if s < t then s else t))) };
+  gp <- { return gp_new(m)(k) };
+  _ <- iter[times; ()] (fn time (acc: unit) ->
+    _ <- sample{obs}(gp(time[]));
+    return ());
+  return drift
+}
