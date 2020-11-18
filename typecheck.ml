@@ -606,13 +606,13 @@ let tycheck_cmd psig_ctxt =
         | Some psigv ->
           let%bind sess0 = String.Map.of_alist_or_error
               (List.append (Option.to_list psigv.psigv_sess_left) (Option.to_list psigv.psigv_sess_right)) in
-          if not (Set.equal (Map.key_set sess0) (Map.key_set sess)) then
+          if not (Set.is_subset (Map.key_set sess0) ~of_:(Map.key_set sess)) then
             Or_error.of_exn (Type_error ("mismatched channels", cmd.cmd_loc))
           else
             Or_error.try_with (fun () ->
                 Map.merge sess0 sess ~f:(fun ~key:_ -> function
-                    | `Left _
-                    | `Right _ -> assert false
+                    | `Left _ -> assert false
+                    | `Right (dir, sty) -> Some (dir, sty)
                     | `Both (type_id, (dir, sty)) ->
                       Some (dir, Styv_var (type_id, sty))
                   )

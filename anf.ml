@@ -190,7 +190,17 @@ let rec normalize_cmd cmd cont =
         cont (Either.second (CE_cond (nexp0, normalize_cmd_term cmd1, normalize_cmd_term cmd2)))
       )
 
-  | M_loop _ | M_iter _ -> failwith "loop/iter conversion: not implemented"
+  | M_loop (n, exp1, bind_name, _, cmd2) ->
+    normalize_exp_name exp1 (fun nexp1 ->
+        cont (Either.second (CE_loop (n, nexp1, bind_name.txt, normalize_cmd_term cmd2)))
+      )
+
+  | M_iter (exp1, exp2, iter_name, bind_name, _, cmd3) ->
+    normalize_exp_name exp1 (fun nexp1 ->
+        normalize_exp_name exp2 (fun nexp2 ->
+            cont (Either.second (CE_iter (nexp1, nexp2, iter_name.txt, bind_name.txt, normalize_cmd_term cmd3)))
+          )
+      )
 
 and normalize_cmd_term cmd =
   normalize_cmd cmd (fun nexp -> IE_tail nexp)

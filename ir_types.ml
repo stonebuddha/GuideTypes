@@ -19,6 +19,8 @@ and cexp =
   | CE_cond_send of aexp * iexp * iexp * string
   | CE_sample_recv of aexp * string
   | CE_sample_send of aexp * string
+  | CE_loop of int * aexp * string * iexp
+  | CE_iter of aexp * aexp * string * string * iexp
 
 and iexp =
   | IE_let of (aexp, cexp) Core.Either.t * string option * iexp

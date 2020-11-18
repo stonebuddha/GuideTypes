@@ -1,0 +1,58 @@
+external ast_const: preal -> ast
+external ast_wn: preal -> ast
+external ast_lin: preal -> ast
+external ast_se: preal -> ast
+external ast_per: preal -> preal -> ast
+external ast_add: ast -> ast -> ast
+external ast_mul: ast -> ast -> ast
+external ast_cp: preal -> ast -> ast -> ast
+external eval_ast: ast -> real -> real -> real
+
+external gp_new: real -> (real -> real -> real) -> real -> real dist
+
+type Latent
+type Observation
+
+proc Model(times: (real; [100]) tensor) -> ast | lat : Latent | obs : Observation = {
+  gen_ast <- GenKernel();
+  ast <- { return ast_add(gen_ast)(ast_wn(0.01)) };
+  gp <- { return gp_new(0)(eval_ast(ast)) };
+  _ <- iter[times; ()] (fn time (acc: unit) ->
+    _ <- sample{obs}(gp(time[]));
+    return ());
+  return ast
+}
+
+type LatentG
+
+proc GenKernel() -> ast | lat : LatentG | . = {
+  b <- observe{lat}(BER(0.3));
+  if{lat} b then
+    op <- observe{lat}(CAT(0.45; 0.45; 0.1));
+    cst <- {
+      if{lat} op = 2 then
+        c <- observe{lat}(GAMMA(1; 1));
+        return ast_cp(c)
+      else
+        return (if op = 0 then ast_add else ast_mul)
+    };
+    lhs <- GenKernel();
+    rhs <- GenKernel();
+    return cst(lhs)(rhs)
+  else
+    op <- observe{lat}(CAT(1; 1; 1; 1; 1));
+    cst <- {
+      if{lat} op = 4 then
+        c <- observe{lat}(GAMMA(1; 1));
+        return ast_per(c)
+      else
+        return (
+          if op = 0 then ast_const
+          else if op = 1 then ast_wn
+          else if op = 2 then ast_lin
+          else ast_se
+        )
+    };
+    c <- observe{lat}(GAMMA(1; 1));
+    return cst(c)
+}

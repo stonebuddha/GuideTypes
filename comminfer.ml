@@ -39,9 +39,9 @@ let anf prog =
       Anf.normalize_prog prog
     )
 
-let compile_for_importanace prog =
+let compile_for_model prog =
   Timer.wrap_duration "emission" (fun () ->
-      Compile.emit_prog_for_importance Format.std_formatter prog
+      Compile.emit_prog_for_model Format.std_formatter prog
     )
 
 let cmd_only_parse =
@@ -89,8 +89,8 @@ let cmd_normalize =
       report_result result
   )
 
-let cmd_compile_importance =
-  Command.basic ~summary:"compile (is)" (
+let cmd_compile_model =
+  Command.basic ~summary:"compile (model)" (
     let open Command.Let_syntax in
     let%map_open filename = anon ("filename" %: Filename.arg_type)
     in
@@ -100,7 +100,7 @@ let cmd_compile_importance =
         let%bind prog = parse_file filename in
         let%bind () = typecheck prog in
         let iprog = anf prog in
-        let () = compile_for_importanace iprog in
+        let () = compile_for_model iprog in
         Ok iprog
       in
       report_result result
@@ -111,7 +111,7 @@ let cmd_route =
     ("only-parse", cmd_only_parse);
     ("type-check", cmd_type_check);
     ("normalize", cmd_normalize);
-    ("compile-is", cmd_compile_importance);
+    ("compile-m", cmd_compile_model);
   ]
 
 let () =
