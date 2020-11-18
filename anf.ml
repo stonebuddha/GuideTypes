@@ -32,7 +32,7 @@ let rec normalize_exp exp cont =
       )
 
   | E_abs (var_name, _, exp0) ->
-    cont (Either.first (AE_abs (var_name.txt, normalize_exp_term exp0)))
+    cont (Either.second (CE_abs (var_name.txt, normalize_exp_term exp0)))
 
   | E_app (exp1, exp2) ->
     normalize_exp_name exp1 (fun nexp1 ->
@@ -80,6 +80,18 @@ let rec normalize_exp exp cont =
               )
         in
         inner index_exps (fun index_nexps -> cont (Either.first (AE_index (base_nexp, index_nexps))))
+      )
+
+  | E_pair (exp1, exp2) ->
+    normalize_exp_name exp1 (fun nexp1 ->
+        normalize_exp_name exp2 (fun nexp2 ->
+            cont (Either.first (AE_pair (nexp1, nexp2)))
+          )
+      )
+
+  | E_field (exp0, field) ->
+    normalize_exp_name exp0 (fun nexp0 ->
+        cont (Either.first (AE_field (nexp0, field)))
       )
 
 and normalize_dist dist cont =

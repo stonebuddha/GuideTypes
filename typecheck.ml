@@ -42,6 +42,7 @@ let rec is_subtype tyv1 tyv2 =
   | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) -> is_prim_subtype Pty_ureal pty2
   | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) -> is_prim_subtype pty1 Pty_ureal
   | Btyv_external name1, Btyv_external name2 -> String.(name1 = name2)
+  | Btyv_product (tyv11, tyv12), Btyv_product (tyv21, tyv22) -> is_subtype tyv11 tyv21 && is_subtype tyv12 tyv22
   | _ -> false
 
 let join_prim ~loc pty1 pty2 =
@@ -87,6 +88,10 @@ let rec join_type ~loc tyv1 tyv2 =
     Ok (Btyv_tensor (pty, dims1))
   | Btyv_external name1, Btyv_external name2 when String.(name1 = name2) ->
     Ok (Btyv_external name1)
+  | Btyv_product (tyv11, tyv12), Btyv_product (tyv21, tyv22) ->
+    let%bind tyv1' = join_type ~loc tyv11 tyv21 in
+    let%bind tyv2' = join_type ~loc tyv12 tyv22 in
+    Ok (Btyv_product (tyv1', tyv2'))
   | _ ->
     Or_error.of_exn (Type_error ("join error", loc))
 
@@ -117,6 +122,10 @@ and meet_type ~loc tyv1 tyv2 =
     Ok (Btyv_tensor (pty, dims1))
   | Btyv_external name1, Btyv_external name2 when String.(name1 = name2) ->
     Ok (Btyv_external name1)
+  | Btyv_product (tyv11, tyv12), Btyv_product (tyv21, tyv22) ->
+    let%bind tyv1' = meet_type ~loc tyv11 tyv21 in
+    let%bind tyv2' = meet_type ~loc tyv12 tyv22 in
+    Ok (Btyv_product (tyv1', tyv2'))
   | _ ->
     Or_error.of_exn (Type_error ("meet error", loc))
 
@@ -128,6 +137,7 @@ let rec eval_ty ty =
   | Bty_tensor (pty, dims) -> Btyv_tensor (pty, dims)
   | Bty_simplex n -> Btyv_simplex n
   | Bty_external type_name -> Btyv_external type_name.txt
+  | Bty_product (ty1, ty2) -> Btyv_product (eval_ty ty1, eval_ty ty2)
 
 let tycheck_bop_prim bop pty1 pty2 =
   match bop.txt, pty1, pty2 with
@@ -313,6 +323,24 @@ let rec tycheck_exp ctxt exp =
           Ok (Btyv_prim pty)
       | _ ->
         Or_error.of_exn (Type_error ("not indexable", base_exp.exp_loc))
+    end
+  | E_pair (exp1, exp2) ->
+    let%bind tyv1 = tycheck_exp ctxt exp1 in
+    let%bind tyv2 = tycheck_exp ctxt exp2 in
+    Ok (Btyv_product (tyv1, tyv2))
+  | E_field (exp0, field) ->
+    let%bind tyv0 = tycheck_exp ctxt exp0 in
+    begin
+      match tyv0 with
+      | Btyv_product (tyv1, tyv2) ->
+        if field = 0 then
+          Ok tyv1
+        else if field = 1 then
+          Ok tyv2
+        else
+          Or_error.of_exn (Type_error ("invalid field", exp.exp_loc))
+      | _ ->
+        Or_error.of_exn (Type_error ("non-projectable value", exp0.exp_loc))
     end
 
 and tycheck_dist ~loc ctxt dist =

@@ -5,11 +5,12 @@ type aexp =
   | AE_real of float
   | AE_nat of int
   | AE_binop of Ast_types.binop * aexp * aexp
-  | AE_abs of string * iexp
   | AE_dist of aexp Ast_types.dist
   | AE_tensor of aexp
   | AE_stack of aexp list
   | AE_index of aexp * aexp list
+  | AE_pair of aexp * aexp
+  | AE_field of aexp * int
 
 and cexp =
   | CE_app of aexp * aexp
@@ -21,6 +22,7 @@ and cexp =
   | CE_sample_send of aexp * string
   | CE_loop of int * aexp * string * iexp
   | CE_iter of aexp * aexp * string * string * iexp
+  | CE_abs of string * iexp
 
 and iexp =
   | IE_let of (aexp, cexp) Core.Either.t * string option * iexp

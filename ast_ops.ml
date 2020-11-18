@@ -12,7 +12,12 @@ let print_prim_ty fmt = function
 
 let rec print_base_tyv fmt = function
   | Btyv_arrow (tyv1, tyv2) ->
-    Format.fprintf fmt "%a -> %a" print_base_tyv_prim tyv1 print_base_tyv tyv2
+    Format.fprintf fmt "%a -> %a" print_base_tyv_prod tyv1 print_base_tyv tyv2
+  | tyv -> print_base_tyv_prod fmt tyv
+
+and print_base_tyv_prod fmt = function
+  | Btyv_product (tyv1, tyv2) ->
+    Format.fprintf fmt "%a * %a" print_base_tyv_prim tyv1 print_base_tyv_prod tyv2
   | tyv -> print_base_tyv_prim fmt tyv
 
 and print_base_tyv_prim fmt = function
@@ -34,7 +39,7 @@ let rec print_sess_tyv fmt = function
   | Styv_one ->
     Format.fprintf fmt "$"
   | Styv_conj (tyv1, styv2) ->
-    Format.fprintf fmt "%a * %a" print_base_tyv tyv1 print_sess_tyv styv2
+    Format.fprintf fmt "%a /\\ %a" print_base_tyv tyv1 print_sess_tyv styv2
   | Styv_imply (tyv1, styv2) ->
     Format.fprintf fmt "%a -o %a" print_base_tyv tyv1 print_sess_tyv styv2
   | Styv_ichoice (styv1, styv2) ->

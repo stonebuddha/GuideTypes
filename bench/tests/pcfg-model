@@ -1,0 +1,22 @@
+external ast_const: preal -> ast
+external ast_add: ast -> ast -> ast
+
+type Latent
+type LatentG
+
+proc Pcfg() -> ast | lat : Latent | . = {
+  k <- observe{lat}(BETA(3; 1));
+  res <- PcfgGen(k; 0; 0);
+  return res.0
+}
+
+proc PcfgGen(k: ureal; dep: nat; cnt: nat) -> ast * nat | lat : LatentG | . = {
+  u <- observe{lat}(UNIF);
+  if{lat} u < k then
+    v <- observe{lat}(GAMMA(dep; cnt));
+    return (ast_const(v); cnt + 1)
+  else
+    lhs <- PcfgGen(k; dep + 1; cnt);
+    rhs <- PcfgGen(k; dep + 1; lhs.1);
+    return (ast_add(lhs.0)(rhs.0); rhs.1 + 1)
+}

@@ -32,6 +32,7 @@ and base_ty_desc =
   | Bty_tensor of prim_ty * int list
   | Bty_simplex of int
   | Bty_external of type_id
+  | Bty_product of base_ty * base_ty
 
 type base_tyv =
   | Btyv_prim of prim_ty
@@ -40,6 +41,7 @@ type base_tyv =
   | Btyv_tensor of prim_ty * int list
   | Btyv_simplex of int
   | Btyv_external of string
+  | Btyv_product of base_tyv * base_tyv
 [@@deriving equal]
 
 type binop =
@@ -88,6 +90,8 @@ and exp_desc =
   | E_tensor of exp
   | E_stack of exp list
   | E_index of exp * exp list
+  | E_pair of exp * exp
+  | E_field of exp * int
 
 type cmd = {
   cmd_desc: cmd_desc;

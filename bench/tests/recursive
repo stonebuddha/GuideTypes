@@ -1,5 +1,5 @@
-type Latent # = real * real * $
-type Observation # = real * $
+type Latent # = real /\ real /\ $
+type Observation # = real /\ $
 
 proc Seq() -> unit | lat : Latent | obs : Observation = {
   x <- observe{lat}(NORMAL(0; 1));
@@ -8,7 +8,7 @@ proc Seq() -> unit | lat : Latent | obs : Observation = {
   return ()
 }
 
-type Linear # = &{ $ | real * Linear }
+type Linear # = &{ $ | real /\ Linear }
 
 proc Iter() -> unit | . | obs : Linear = {
   if{obs} . then
@@ -18,7 +18,7 @@ proc Iter() -> unit | . | obs : Linear = {
     Iter()
 }
 
-type NonLinear # = &{ $ | real * NonLinear[NonLinear] }
+type NonLinear # = &{ $ | real /\ NonLinear[NonLinear] }
 
 proc DIter() -> unit | . | obs : NonLinear = {
   if{obs} . then
@@ -29,7 +29,7 @@ proc DIter() -> unit | . | obs : NonLinear = {
     DIter()
 }
 
-type General # = &{ $ | real * General[real * General[real * General]] }
+type General # = &{ $ | real /\ General[real /\ General[real /\ General]] }
 
 proc Recur() -> unit | . | obs : General = {
   if{obs} . then

@@ -90,6 +90,7 @@ let mkcmd ~loc cmd_desc = {
 %token SEMI
 %token SIMPLEX
 %token SLASH
+%token SLASHBACKSLASH
 %token STACK
 %token TENSOR
 %token THEN
@@ -160,7 +161,7 @@ sess_ty:
   | mksty(
       DOLLAR
       { Sty_one }
-    | bty = base_ty; ASTERISK; sty = sess_ty
+    | bty = base_ty; SLASHBACKSLASH; sty = sess_ty
       { Sty_conj (bty, sty) }
     | bty = base_ty; MINUSO; sty = sess_ty
       { Sty_imply (bty, sty) }
@@ -176,11 +177,20 @@ sess_ty:
     { $1 }
 
 base_ty:
+  | bty = base_prod_ty
+    { bty }
+  | mkbty(
+      bty1 = base_prod_ty; MINUSGREATER; bty2 = base_ty
+      { Bty_arrow (bty1, bty2) }
+    )
+    { $1 }
+
+base_prod_ty:
   | bty = base_prim_ty
     { bty }
   | mkbty(
-      bty1 = base_prim_ty; MINUSGREATER; bty2 = base_ty
-      { Bty_arrow (bty1, bty2) }
+      bty1 = base_prim_ty; ASTERISK; bty2 = base_prod_ty
+      { Bty_product (bty1, bty2) }
     )
     { $1 }
 
@@ -288,6 +298,8 @@ prim_exp:
       { E_nat n }
     | r = FLOATV
       { E_real r }
+    | MINUS; n = INTV
+      { E_real (Float.of_int (-n)) }
     | MINUS; r = FLOATV
       { E_real (-. r) }
     | LET; var_name = mkloc(LIDENT); EQUAL; exp1 = exp; IN; exp2 = exp; END
@@ -300,6 +312,10 @@ prim_exp:
       { E_stack exps }
     | base_exp = prim_exp; LBRACKET; index_exps = separated_list(SEMI, exp); RBRACKET
       { E_index (base_exp, index_exps) }
+    | LPAREN; exp1 = exp; SEMI; exp2 = exp; RPAREN
+      { E_pair (exp1, exp2) }
+    | exp = prim_exp; DOT; field = INTV
+      { E_field (exp, field) }
     )
     { $1 }
 

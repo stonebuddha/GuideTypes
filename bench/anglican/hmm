@@ -15,7 +15,7 @@ proc Model() -> unit | lat : Latent | obs : Observation = {
   };
   obs_dists <- { return fn (i: nat[3]) ->
     if i = 0 then
-      NORMAL(-1.0; 1)
+      NORMAL(-1; 1)
     else if i = 1 then
       NORMAL(1; 1)
     else

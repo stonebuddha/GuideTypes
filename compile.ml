@@ -4,6 +4,13 @@ open Ir_types
 
 let tab = "    "
 
+let genvar =
+  let cnt = ref 0 in
+  fun () ->
+    let res = "_gensym_" ^ Int.to_string !cnt in
+    incr cnt;
+    res
+
 let emit_bop fmt = function
   | Bop_add -> Format.fprintf fmt "+"
   | Bop_sub -> Format.fprintf fmt "-"
@@ -22,8 +29,8 @@ let rec emit_aexp fmt = function
   | AE_var var_name -> Format.fprintf fmt "%s" var_name
   | AE_triv -> Format.fprintf fmt "()"
   | AE_bool b -> Format.fprintf fmt "%s" (if b then "True" else "False")
-  | AE_real f -> Format.fprintf fmt "%a" Float.pp f
-  | AE_nat n -> Format.fprintf fmt "%a" Int.pp n
+  | AE_real f -> Format.fprintf fmt "%.8f" f
+  | AE_nat n -> Format.fprintf fmt "%d" n
   | AE_binop (bop, exp1, exp2) ->
     Format.fprintf fmt "(%a %a %a)" emit_aexp exp1 emit_bop bop emit_aexp exp2
   | AE_dist dist -> Format.fprintf fmt "%a" emit_dist dist
@@ -31,11 +38,14 @@ let rec emit_aexp fmt = function
   | AE_stack exps -> Format.fprintf fmt "torch.stack((%a))"
                        (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp) exps
   | AE_index (base_exp, index_exps) ->
-    Format.fprintf fmt "(%a)%a.item()" emit_aexp base_exp
+    Format.fprintf fmt "%a%a.item()" emit_aexp base_exp
       (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "")
          (fun fmt aexp -> Format.fprintf fmt "[%a]" emit_aexp aexp))
       index_exps
-  | AE_abs _ -> failwith "closure conversion: not implemented"
+  | AE_pair (exp1, exp2) ->
+    Format.fprintf fmt "(%a, %a)" emit_aexp exp1 emit_aexp exp2
+  | AE_field (exp0, field) ->
+    Format.fprintf fmt "%a[%d]" emit_aexp exp0 field
 
 and emit_dist fmt = function
   | D_ber exp -> Format.fprintf fmt "dist.Bernoulli(%a)" emit_aexp exp
@@ -64,14 +74,14 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
   | CE_app (exp1, exp2) ->
     emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "%a(%a)" emit_aexp exp1 emit_aexp exp2) ()
   | CE_call (proc_name, exps) ->
-    emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "%s(%a)" proc_name
+    emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "self.%s(%a)" proc_name
                                       (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp)
                                       exps) ()
   | CE_cond (exp0, exp1, exp2) ->
     Format.fprintf fmt "%sif %a:@.%a%selse:@.%a" lev emit_aexp exp0 (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp1 lev (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp2
 
   | CE_sample_recv (exp0, channel_name) ->
-    Format.fprintf fmt "%s%s += 1@." lev ("_" ^ channel_name ^ "cnt");
+    Format.fprintf fmt "%sself.%s += 1@." lev ("_" ^ channel_name ^ "cnt");
     begin
       match comm with
       | Some (_, comm_r) ->
@@ -82,12 +92,12 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
         emit_ret_or_bnd ?bind lev fmt (fun fmt () ->
             Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)"
               channel_name
-              ("_" ^ channel_name ^ "cnt")
+              ("self._" ^ channel_name ^ "cnt")
               emit_aexp exp0
           ) ()
     end
   | CE_sample_send (exp0, channel_name) ->
-    Format.fprintf fmt "%s%s += 1@." lev ("_" ^ channel_name ^ "cnt");
+    Format.fprintf fmt "%sself.%s += 1@." lev ("_" ^ channel_name ^ "cnt");
     begin
       match comm with
       | Some (comm_l, _) ->
@@ -95,7 +105,7 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
         emit_ret_or_bnd ~bind:(Some bind) lev fmt (fun fmt () ->
             Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)"
               channel_name
-              ("_" ^ channel_name ^ "cnt")
+              ("self._" ^ channel_name ^ "cnt")
               emit_aexp exp0
           ) ();
         begin
@@ -110,7 +120,7 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
         emit_ret_or_bnd ?bind lev fmt (fun fmt () ->
             Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)"
               channel_name
-              ("_" ^ channel_name ^ "cnt")
+              ("self._" ^ channel_name ^ "cnt")
               emit_aexp exp0
           ) ()
     end
@@ -166,6 +176,19 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
       | _ -> emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "%s" bind_name) ()
     end
 
+  | CE_abs (var_name, body_exp) ->
+    begin
+      match bind with
+      | Some None -> ()
+      | _ ->
+        begin
+          let lambda_name = genvar () in
+          Format.fprintf fmt "%sdef %s(%s):@." lev lambda_name var_name;
+          Format.fprintf fmt "%a" (emit_iexp ~comm ~extra (lev ^ tab)) body_exp;
+          emit_ret_or_bnd ?bind lev fmt (fun fmt () -> Format.fprintf fmt "%s" lambda_name) ()
+        end
+    end
+
 and emit_aexp_or_cexp ~comm ~extra ?bind lev fmt =
   Either.value_map ~first:(emit_ret_or_bnd ?bind lev fmt emit_aexp) ~second:(emit_cexp ~comm ~extra ?bind lev fmt)
 
@@ -180,16 +203,31 @@ let emit_proc ~comm lev fmt (proc_name, proc) =
       (List.append (Option.to_list proc.iproc_sig.ipsig_sess_left) (Option.to_list proc.iproc_sig.ipsig_sess_right))
       ~f:(fun channel_name -> "_" ^ channel_name ^ "cnt")
   in
-  Format.fprintf fmt
-    "%sdef %s(%a):@.%a"
+  Format.fprintf fmt "%sdef %s(self%a):@."
     lev
     proc_name
-    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") String.pp) proc.iproc_sig.ipsig_params
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "") (fun fmt s -> Format.fprintf fmt ", %s" s)) proc.iproc_sig.ipsig_params;
+  Format.fprintf fmt "%a"
     (emit_iexp ~comm ~extra (lev ^ tab))
     proc.iproc_body
 
 let emit_prog_for_model fmt prog =
-  List.iter prog ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:None "") top)
+  let (model_proc_name, model_proc) = List.hd_exn prog in
+  Format.fprintf fmt
+    "class Wrapper_for_%s:@."
+    model_proc_name;
+  Format.fprintf fmt
+    "%sdef run(self%a):@."
+    tab
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "") (fun fmt s -> Format.fprintf fmt ", %s" s)) (model_proc.iproc_sig.ipsig_params);
+  List.iter
+    (List.append (Option.to_list model_proc.iproc_sig.ipsig_sess_left) (Option.to_list model_proc.iproc_sig.ipsig_sess_right))
+    ~f:(fun channel_name ->
+        let field_name = "_" ^ channel_name ^ "cnt" in
+        Format.fprintf fmt "%sself.%s = 0@." (tab ^ tab) field_name);
+  Format.fprintf fmt "%sreturn self.%s(%a)@." (tab ^ tab) model_proc_name
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") (fun fmt s -> Format.fprintf fmt ", %s" s)) (model_proc.iproc_sig.ipsig_params);
+  List.iter prog ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:None tab) top)
 
 (* let emit_prog_for_guide fmt prog =
    let (model_proc_name, model_proc) = List.hd_exn prog in
