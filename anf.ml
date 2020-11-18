@@ -120,6 +120,10 @@ and normalize_dist dist cont =
           )
     in
     inner exps (fun nexps -> cont (D_cat nexps))
+  | D_discrete exp ->
+    normalize_exp_name exp (fun nexp ->
+        cont (D_discrete nexp)
+      )
   | D_bin (n, exp) ->
     normalize_exp_name exp (fun nexp ->
         cont (D_bin (n, nexp))

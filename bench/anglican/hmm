@@ -1,0 +1,31 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=aistats/hmm-aistats
+
+type Latent
+type Observation
+
+proc Model() -> unit | lat : Latent | obs : Observation = {
+  init_dist <- { return CAT(1; 1; 1) };
+  trans_dists <- { return fn (i: nat[3]) ->
+    if i = 0 then
+      CAT(0.1; 0.5; 0.4)
+    else if i = 1 then
+      CAT(0.2; 0.2; 0.6)
+    else
+      CAT(0.15; 0.15; 0.7)
+  };
+  obs_dists <- { return fn (i: nat[3]) ->
+    if i = 0 then
+      NORMAL(-1.0; 1)
+    else if i = 1 then
+      NORMAL(1; 1)
+    else
+      NORMAL(0; 0)
+  };
+  init_state <- observe{lat}(init_dist);
+  _ <- loop[16; init_state] (fn (state: nat[3]) ->
+    next_state <- observe{lat}(trans_dists(state));
+    _ <- sample{obs}(obs_dists(next_state));
+    return next_state
+  );
+  return ()
+}

@@ -33,6 +33,7 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("return", RETURN);
   ("real", REAL);
   ("sample", SAMPLE);
+  ("simplex", SIMPLEX);
   ("stack", STACK);
   ("tensor", TENSOR);
   ("then", THEN);
@@ -69,14 +70,15 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("_", UNDERSCORE);
 
   ("BER", BER);
-  ("BIN", BIN);
-  ("UNIF", UNIF);
   ("BETA", BETA);
-  ("GAMMA", GAMMA);
-  ("NORMAL", NORMAL);
+  ("BIN", BIN);
   ("CAT", CAT);
+  ("DISC", DISC);
+  ("GAMMA", GAMMA);
   ("GEO", GEO);
+  ("NORMAL", NORMAL);
   ("POIS", POIS);
+  ("UNIF", UNIF);
 ]
 
 (* Update the current location with file name and line number. *)

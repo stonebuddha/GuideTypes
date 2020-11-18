@@ -1,9 +1,11 @@
-type Observation
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=poisson-trace
 
-proc PoissonTrace(l: ureal; k: nat; p: ureal) -> nat | . | obs : Observation = {
-  u <- sample{obs}(UNIF);
-  if{obs} p * u <= l then
-    return k
+type Latent
+
+proc Model(l: ureal; k: real; p: ureal) -> real | lat : Latent | . = {
+  u <- observe{lat}(UNIF);
+  if{lat} p * u <= l then
+    return (k - 1.0)
   else
-    PoissonTrace(l; k + 1; p * u)
+    Model(l; k + 1.0; p * u)
 }

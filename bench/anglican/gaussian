@@ -1,0 +1,13 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=aistats/gaussian-aistats
+
+type Latent
+type Observation
+
+proc Model(mu0: real; sigma0: preal; sigma: preal) -> real | lat : Latent | obs : Observation = {
+  mu <- observe{lat}(NORMAL(mu0; sigma0));
+  likelyhood <- { return NORMAL(mu; sigma) };
+  _ <- loop[2; ()] (fn (acc: unit) ->
+    _ <- sample{obs}(likelyhood);
+    return ());
+  return mu
+}

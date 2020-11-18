@@ -1,0 +1,9 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=coordination-game
+
+type Latent
+
+proc Model() -> bool | lat : Latent | . = {
+  amy_location <- observe{lat}(BER(0.6));
+  bob_location <- observe{lat}(BER(0.6));
+  return (amy_location = bob_location)
+}

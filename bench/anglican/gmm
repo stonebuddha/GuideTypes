@@ -1,0 +1,44 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=gmm-iris
+
+external identity_matrix2: (real; [2; 2]) tensor
+external invert: (real; [2; 2]) tensor -> (real; [2; 2]) tensor
+
+external dirichlet3: (preal; [3]) tensor -> simplex[3] dist
+external wishart2: (real; [2; 2]) tensor -> real -> (real; [2; 2]) tensor dist
+external mvn2: (real; [2]) tensor -> (real; [2; 2]) tensor -> (real; [2]) tensor dist
+
+type Latent
+type Observation
+
+proc Model() -> unit | lat : Latent | obs : Observation = {
+  pi <- observe{lat}(dirichlet3(stack(tensor(1); tensor(1); tensor(1))));
+  lambda_0 <- { return identity_matrix2 };
+  lambda_1 <- observe{lat}(wishart2(lambda_0)(3));
+  lambda_2 <- observe{lat}(wishart2(lambda_0)(3));
+  lambda_3 <- observe{lat}(wishart2(lambda_0)(3));
+  lambdas <- { return fn (i: nat[3]) ->
+    if i = 0 then
+      lambda_1
+    else if i = 1 then
+      lambda_2
+    else
+      lambda_3
+  };
+  mu_0 <- { return stack(tensor(0); tensor(0)) };
+  mu_1 <- observe{lat}(mvn2(mu_0)(invert(lambda_1)));
+  mu_2 <- observe{lat}(mvn2(mu_0)(invert(lambda_2)));
+  mu_3 <- observe{lat}(mvn2(mu_0)(invert(lambda_3)));
+  mus <- { return fn (i: nat[3]) ->
+    if i = 0 then
+      mu_1
+    else if i = 1 then
+      mu_2
+    else
+      mu_3
+  };
+  _ <- loop[100; ()] (fn (acc: unit) ->
+    k <- observe{lat}(DISC(pi));
+    _ <- sample{obs}(mvn2(mus(k))(invert(lambdas(k))));
+    return ());
+  return ()
+}

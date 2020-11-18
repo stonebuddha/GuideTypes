@@ -3,7 +3,7 @@
 type Latent
 type Observation
 
-proc Model() -> nat | lat : Latent | obs : Observation = {
+proc Model() -> unit | lat : Latent | obs : Observation = {
   fake_rate <- {
     tmp <- observe{lat}(POIS(5));
     return (tmp + 1)
@@ -19,5 +19,5 @@ proc Model() -> nat | lat : Latent | obs : Observation = {
     _ <- sample{obs}(POIS(if is_faking then fake_rate else user_rate));
     return (is_faking or new_is_faking));
   _ <- sample{obs}(BER(if final_is_faking then 0.99 else 0.01));
-  return fake_rate
+  return ()
 }

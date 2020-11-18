@@ -30,12 +30,14 @@ and base_ty_desc =
   | Bty_arrow of base_ty * base_ty
   | Bty_dist of base_ty
   | Bty_tensor of prim_ty * int list
+  | Bty_simplex of int
 
 type base_tyv =
   | Btyv_prim of prim_ty
   | Btyv_arrow of base_tyv * base_tyv
   | Btyv_dist of base_tyv
   | Btyv_tensor of prim_ty * int list
+  | Btyv_simplex of int
 [@@deriving equal]
 
 type binop =
@@ -59,6 +61,7 @@ type 'a dist =
   | D_gamma of 'a * 'a
   | D_normal of 'a * 'a
   | D_cat of 'a list
+  | D_discrete of 'a
   | D_bin of int * 'a
   | D_geo of 'a
   | D_pois of 'a

@@ -44,6 +44,7 @@ and emit_dist fmt = function
   | D_cat exps ->
     Format.fprintf fmt "dist.Categorical(torch.tensor([%a]))"
       (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp) exps
+  | D_discrete exp -> Format.fprintf fmt "dist.Categorical(%a)" emit_aexp exp
   | D_bin (n, exp) -> Format.fprintf fmt "dist.Binomial(%d, %a)" n emit_aexp exp
   | D_geo exp -> Format.fprintf fmt "dist.Geometric(%a)" emit_aexp exp
   | D_pois exp -> Format.fprintf fmt "dist.Poisson(%a)" emit_aexp exp

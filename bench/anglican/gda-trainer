@@ -1,0 +1,23 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=classification
+
+external identity_matrix3: (real; [3; 3]) tensor
+
+external dirichlet2: (preal; [2]) tensor -> simplex[2] dist
+external mvn3: (real; [3]) tensor -> (real; [3; 3]) tensor -> (real; [3]) tensor dist
+
+external gda2: simplex[2] -> (real; [3]) tensor dist -> (real; [3]) tensor dist -> (real; [3]) tensor dist
+
+type Latent
+type Observation
+
+proc Model() -> unit | lat : Latent | obs : Observation = {
+  mu_prior <- { return mvn3(stack(tensor(1); tensor(1); tensor(1)))(identity_matrix3) };
+  mu1 <- observe{lat}(mu_prior);
+  mu2 <- observe{lat}(mu_prior);
+  pi <- observe{lat}(dirichlet2(stack(tensor(1); tensor(1))));
+  gda_dist <- { return let sigma = identity_matrix3 in gda2(pi)(mvn3(mu1)(sigma))(mvn3(mu2)(sigma)) end };
+  _ <- loop[7; ()] (fn (acc: unit) ->
+    _ <- sample{obs}(gda_dist);
+    return ());
+  return ()
+}

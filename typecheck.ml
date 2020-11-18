@@ -38,6 +38,9 @@ let rec is_subtype tyv1 tyv2 =
   | Btyv_dist tyv1', Btyv_dist tyv2' -> equal_base_tyv tyv1' tyv2'
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) -> is_subtype tyv21 tyv11 && is_subtype tyv12 tyv22
   | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) -> is_prim_subtype pty1 pty2
+  | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 -> true
+  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) -> is_prim_subtype Pty_ureal pty2
+  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) -> is_prim_subtype pty1 Pty_ureal
   | _ -> false
 
 let join_prim ~loc pty1 pty2 =
@@ -73,6 +76,14 @@ let rec join_type ~loc tyv1 tyv2 =
   | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) ->
     let%bind pty = join_prim ~loc pty1 pty2 in
     Ok (Btyv_tensor (pty, dims1))
+  | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 ->
+    Ok (Btyv_simplex n1)
+  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) ->
+    let%bind pty = join_prim ~loc Pty_ureal pty2 in
+    Ok (Btyv_tensor (pty, [n1]))
+  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) ->
+    let%bind pty = join_prim ~loc pty1 Pty_ureal in
+    Ok (Btyv_tensor (pty, dims1))
   | _ ->
     Or_error.of_exn (Type_error ("join error", loc))
 
@@ -93,6 +104,14 @@ and meet_type ~loc tyv1 tyv2 =
   | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) ->
     let%bind pty = meet_prim ~loc pty1 pty2 in
     Ok (Btyv_tensor (pty, dims1))
+  | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 ->
+    Ok (Btyv_simplex n1)
+  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) ->
+    let%bind pty = meet_prim ~loc Pty_ureal pty2 in
+    Ok (Btyv_tensor (pty, [n1]))
+  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) ->
+    let%bind pty = meet_prim ~loc pty1 Pty_ureal in
+    Ok (Btyv_tensor (pty, dims1))
   | _ ->
     Or_error.of_exn (Type_error ("meet error", loc))
 
@@ -102,6 +121,7 @@ let rec eval_ty ty =
   | Bty_arrow (ty1, ty2) -> Btyv_arrow (eval_ty ty1, eval_ty ty2)
   | Bty_dist ty0 -> Btyv_dist (eval_ty ty0)
   | Bty_tensor (pty, dims) -> Btyv_tensor (pty, dims)
+  | Bty_simplex n -> Btyv_simplex n
 
 let tycheck_bop_prim bop pty1 pty2 =
   match bop.txt, pty1, pty2 with
@@ -174,6 +194,14 @@ let tycheck_bop bop arg1 arg2 =
   | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) ->
     let%bind res = tycheck_bop_prim bop pty1 pty2 in
     Ok (Btyv_tensor (res, dims1))
+  | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 ->
+    Ok (Btyv_tensor (Pty_preal, [n1]))
+  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) ->
+    let%bind pty = tycheck_bop_prim bop Pty_ureal pty2 in
+    Ok (Btyv_tensor (pty, [n1]))
+  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) ->
+    let%bind pty = tycheck_bop_prim bop pty1 Pty_ureal in
+    Ok (Btyv_tensor (pty, dims1))
   | _ ->
     Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
 
@@ -251,10 +279,14 @@ let rec tycheck_exp ctxt exp =
         | _ -> Or_error.of_exn (Type_error ("non-tensor type", exp.exp_loc))
       ) in
     let (pty, dims) = List.hd_exn ptys in
-    if List.for_all ptys ~f:(fun (pty', dims') -> equal_prim_ty pty pty' && Poly.(dims = dims')) then
-      Ok (Btyv_tensor (pty, n :: dims))
-    else
-      Or_error.of_exn (Type_error ("not stackable", exp.exp_loc))
+    let%bind join_pty = List.fold_result ptys ~init:pty ~f:(fun acc (pty', dims') ->
+        if Poly.(dims = dims') then
+          join_prim ~loc:exp.exp_loc acc pty'
+        else
+          Or_error.of_exn (Type_error ("not stackable", exp.exp_loc))
+      )
+    in
+    Ok (Btyv_tensor (join_pty, n :: dims))
   | E_index (base_exp, index_exps) ->
     let%bind base_tyv = tycheck_exp ctxt base_exp in
     begin
@@ -319,6 +351,15 @@ and tycheck_dist ~loc ctxt dist =
       )
     in
     Ok (Btyv_prim (Pty_fnat n))
+  | D_discrete exp ->
+    let%bind tyv = tycheck_exp ctxt exp in
+    begin
+      match tyv with
+      | Btyv_simplex n ->
+        Ok (Btyv_prim (Pty_fnat n))
+      | _ ->
+        Or_error.of_exn (Type_error ("mismatched parameter types", loc))
+    end
   | D_bin (n, exp) ->
     let%bind tyv = tycheck_exp ctxt exp in
     if is_subtype tyv (Btyv_prim Pty_ureal) then

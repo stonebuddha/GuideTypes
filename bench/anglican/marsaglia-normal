@@ -1,0 +1,22 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=marsaglia
+
+external sqrt: real -> real
+external log: real -> real
+
+type Latent
+
+proc Model(mean: real; var: preal) -> real | lat : Latent | . = {
+  x <- {
+    tmp <- observe{lat}(UNIF);
+    return (tmp * 2.0 - 1.0)
+  };
+  y <- {
+    tmp <- observe{lat}(UNIF);
+    return (tmp * 2.0 - 1.0)
+  };
+  s <- { return (x * x) + (y * y) };
+  if{lat} s < 1.0 then
+    return mean + sqrt(var) * (x * sqrt(-2.0 * (log(s) / s)))
+  else
+    Model(mean; var)
+}

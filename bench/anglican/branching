@@ -1,9 +1,11 @@
-type Latent
-type Observation
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=aistats/branching-aistats
 
 external fib: nat -> nat
 
-proc Branching() -> nat | lat : Latent | obs : Observation = {
+type Latent
+type Observation
+
+proc Model() -> nat | lat : Latent | obs : Observation = {
   r <- observe{lat}(POIS(4.));
   l <- {
     if{lat} 4 < r then

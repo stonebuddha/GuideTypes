@@ -23,6 +23,8 @@ and print_base_tyv_prim fmt = function
   | Btyv_tensor (pty, dims) ->
     Format.fprintf fmt "(%a; [%a]) tensor" print_prim_ty pty
       (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "; ") Int.pp) dims
+  | Btyv_simplex n ->
+    Format.fprintf fmt "simplex[%d]" n
   | tyv ->
     Format.fprintf fmt "(%a)" print_base_tyv tyv
 

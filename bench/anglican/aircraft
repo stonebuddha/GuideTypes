@@ -1,0 +1,32 @@
+# https://probprog.github.io/anglican/examples/viewer/?worksheet=aircraft
+
+type LatentM
+type LatentR
+type LatentL
+
+proc Model() -> unit | lat : LatentM | . = {
+  num_aircraft <- {
+    tmp <- observe{lat}(POIS(5));
+    return tmp + 1
+  };
+  _ <- Recur(0; num_aircraft);
+  return ()
+}
+
+proc Recur(i: nat; n: nat) -> unit | lat : LatentR | . = {
+  if{lat} i < n then
+    position <- observe{lat}(NORMAL(2; 5));
+    num_blips <- observe{lat}(CAT(0.1; 0.4; 0.5));
+    _ <- Loop(0; num_blips; position);
+    Recur(i + 1; n)
+  else
+    return ()
+}
+
+proc Loop(j: nat; m: nat; position: real) -> unit | lat : LatentL | . = {
+  if{lat} j < m then
+    _ <- observe{lat}(NORMAL(position; 1));
+    Loop(j + 1; m; position)
+  else
+    return ()
+}

@@ -1,6 +1,6 @@
 # https://probprog.github.io/anglican/examples/viewer/?worksheet=irr-2
 
-external log: preal -> real
+external log: real -> real
 external gp_new: (real -> real) -> (real -> real -> real) -> real -> real dist
 
 type Latent

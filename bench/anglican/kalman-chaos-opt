@@ -1,0 +1,34 @@
+# https://probprog.github.io/anglican/examples/viewer/?source=github&user=probprog&repo=bopp&path=worksheets/chaos.clj
+
+external obs_dist: (real; [3]) tensor -> (real; [20]) tensor dist
+
+type Latent
+type Observation
+
+proc Model() -> unit | lat : Latent | obs : Observation = {
+  beta <- {
+    tmp <- observe{lat}(UNIF);
+    return (tmp * 6.0 - 3.0)
+  };
+  nu <- {
+    tmp <- observe{lat}(UNIF);
+    return (tmp * 3.0)
+  };
+  delta_dist <- { return NORMAL(0; 0.01) };
+  init_vals <- {
+    tmp0 <- observe{lat}(NORMAL(1.5; 0.2));
+    tmp1 <- observe{lat}(NORMAL(-0.8; 0.2));
+    tmp2 <- observe{lat}(NORMAL(-0.2; 0.2));
+    return stack(tensor(tmp0); tensor(tmp1); tensor(tmp2))
+  };
+  _ <- loop[50; init_vals] (fn (prev_vals: (real; [3]) tensor) ->
+    next_vals <- {
+      tmp0 <- observe{lat}(delta_dist);
+      tmp1 <- observe{lat}(delta_dist);
+      tmp2 <- observe{lat}(delta_dist);
+      return prev_vals + stack(tensor(tmp0); tensor(tmp1); tensor(tmp2))
+    };
+    _ <- sample{obs}(obs_dist(next_vals));
+    return next_vals);
+  return ()
+}

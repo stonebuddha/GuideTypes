@@ -40,6 +40,7 @@ let mkcmd ~loc cmd_desc = {
 %token BOOL
 %token CAT
 %token COLON
+%token DISC
 %token DIST
 %token DOLLAR
 %token DOT
@@ -87,6 +88,7 @@ let mkcmd ~loc cmd_desc = {
 %token REAL
 %token SAMPLE
 %token SEMI
+%token SIMPLEX
 %token SLASH
 %token STACK
 %token TENSOR
@@ -182,6 +184,8 @@ base_prim_ty:
       { Bty_dist bty }
     | LPAREN; pty = prim_ty; SEMI; LBRACKET; dims = separated_list(SEMI, INTV); RBRACKET; RPAREN; TENSOR
       { Bty_tensor (pty, dims) }
+    | SIMPLEX; LBRACKET; n = INTV; RBRACKET
+      { Bty_simplex n }
     )
     { $1 }
 
@@ -272,6 +276,8 @@ prim_exp:
       { E_nat n }
     | r = FLOATV
       { E_real r }
+    | MINUS; r = FLOATV
+      { E_real (-. r) }
     | LET; var_name = mkloc(LIDENT); EQUAL; exp1 = exp; IN; exp2 = exp; END
       { E_let (exp1, var_name, exp2) }
     | dist = dist(exp)
@@ -298,6 +304,8 @@ dist(RHS):
     { D_normal (arg1, arg2) }
   | CAT; LPAREN; args = separated_nonempty_list(SEMI, RHS); RPAREN
     { D_cat args }
+  | DISC; LPAREN; arg = RHS; RPAREN
+    { D_discrete arg }
   | BIN; LPAREN; n = INTV; SEMI; arg = RHS; RPAREN
     { D_bin (n, arg) }
   | GEO; LPAREN; arg = RHS; RPAREN
