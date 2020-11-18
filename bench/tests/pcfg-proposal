@@ -1,0 +1,18 @@
+type Latent
+type LatentG
+
+proc GuidePcfg() -> unit | . | lat : Latent = {
+  k <- sample{lat}(UNIF);
+  GuidePcfgGen(0)
+}
+
+proc GuidePcfgGen(dep: nat) -> unit | . | lat : LatentG = {
+  u <- sample{lat}(UNIF);
+  if{lat} . then
+    _ <- sample{lat}(GAMMA(dep; 1));
+    return ()
+  else
+    _ <- GuidePcfgGen(dep + 1);
+    _ <- GuidePcfgGen(dep + 2);
+    return ()
+}

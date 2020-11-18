@@ -25,7 +25,7 @@ and cexp =
   | CE_abs of string * iexp
 
 and iexp =
-  | IE_let of (aexp, cexp) Core.Either.t * string option * iexp
+  | IE_let of (aexp, cexp) Core.Either.t * string * iexp
   | IE_tail of (aexp, cexp) Core.Either.t
 
 type iproc_sig = {

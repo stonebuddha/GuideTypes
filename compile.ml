@@ -81,7 +81,6 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
     Format.fprintf fmt "%sif %a:@.%a%selse:@.%a" lev emit_aexp exp0 (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp1 lev (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp2
 
   | CE_sample_recv (exp0, channel_name) ->
-    Format.fprintf fmt "%sself.%s += 1@." lev ("_" ^ channel_name ^ "cnt");
     begin
       match comm with
       | Some comm when String.(comm = channel_name) ->
@@ -191,7 +190,7 @@ and emit_aexp_or_cexp ~comm ~extra ?bind lev fmt =
 and emit_iexp ~comm ~extra ?bind lev fmt = function
   | IE_tail exp -> emit_aexp_or_cexp ~comm ~extra ?bind lev fmt exp
   | IE_let (exp1, var_name, exp2) ->
-    emit_aexp_or_cexp ~comm ~extra ~bind:var_name lev fmt exp1;
+    emit_aexp_or_cexp ~comm ~extra ~bind:(Some var_name) lev fmt exp1;
     emit_iexp ~comm ~extra ?bind lev fmt exp2
 
 let emit_proc ~comm lev fmt (proc_name, proc) =
