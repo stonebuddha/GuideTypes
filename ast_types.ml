@@ -31,6 +31,7 @@ and base_ty_desc =
   | Bty_dist of base_ty
   | Bty_tensor of prim_ty * int list
   | Bty_simplex of int
+  | Bty_external of type_id
 
 type base_tyv =
   | Btyv_prim of prim_ty
@@ -38,6 +39,7 @@ type base_tyv =
   | Btyv_dist of base_tyv
   | Btyv_tensor of prim_ty * int list
   | Btyv_simplex of int
+  | Btyv_external of string
 [@@deriving equal]
 
 type binop =

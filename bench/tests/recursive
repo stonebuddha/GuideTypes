@@ -1,0 +1,44 @@
+type Latent # = real * real * $
+type Observation # = real * $
+
+proc Seq() -> unit | lat : Latent | obs : Observation = {
+  x <- observe{lat}(NORMAL(0; 1));
+  y <- observe{lat}(NORMAL(0; 1));
+  _ <- sample{obs}(NORMAL(x + y; 1));
+  return ()
+}
+
+type Linear # = &{ $ | real * Linear }
+
+proc Iter() -> unit | . | obs : Linear = {
+  if{obs} . then
+    return ()
+  else
+    _ <- sample{obs}(NORMAL(0; 1));
+    Iter()
+}
+
+type NonLinear # = &{ $ | real * NonLinear[NonLinear] }
+
+proc DIter() -> unit | . | obs : NonLinear = {
+  if{obs} . then
+    return ()
+  else
+    _ <- sample{obs}(NORMAL(0; 1));
+    _ <- DIter();
+    DIter()
+}
+
+type General # = &{ $ | real * General[real * General[real * General]] }
+
+proc Recur() -> unit | . | obs : General = {
+  if{obs} . then
+    return ()
+  else
+    _ <- sample{obs}(NORMAL(0; 1));
+    _ <- Recur();
+    _ <- sample{obs}(NORMAL(0; 1));
+    _ <- Recur();
+    _ <- sample{obs}(NORMAL(0; 1));
+    Recur()
+}

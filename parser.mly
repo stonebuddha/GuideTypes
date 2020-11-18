@@ -196,6 +196,8 @@ base_prim_ty:
       { Bty_tensor (pty, dims) }
     | SIMPLEX; LBRACKET; n = INTV; RBRACKET
       { Bty_simplex n }
+    | type_name = mkloc(LIDENT)
+      { Bty_external type_name }
     )
     { $1 }
 

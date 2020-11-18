@@ -41,6 +41,7 @@ let rec is_subtype tyv1 tyv2 =
   | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 -> true
   | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) -> is_prim_subtype Pty_ureal pty2
   | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) -> is_prim_subtype pty1 Pty_ureal
+  | Btyv_external name1, Btyv_external name2 -> String.(name1 = name2)
   | _ -> false
 
 let join_prim ~loc pty1 pty2 =
@@ -84,6 +85,8 @@ let rec join_type ~loc tyv1 tyv2 =
   | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) ->
     let%bind pty = join_prim ~loc pty1 Pty_ureal in
     Ok (Btyv_tensor (pty, dims1))
+  | Btyv_external name1, Btyv_external name2 when String.(name1 = name2) ->
+    Ok (Btyv_external name1)
   | _ ->
     Or_error.of_exn (Type_error ("join error", loc))
 
@@ -112,6 +115,8 @@ and meet_type ~loc tyv1 tyv2 =
   | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) ->
     let%bind pty = meet_prim ~loc pty1 Pty_ureal in
     Ok (Btyv_tensor (pty, dims1))
+  | Btyv_external name1, Btyv_external name2 when String.(name1 = name2) ->
+    Ok (Btyv_external name1)
   | _ ->
     Or_error.of_exn (Type_error ("meet error", loc))
 
@@ -122,6 +127,7 @@ let rec eval_ty ty =
   | Bty_dist ty0 -> Btyv_dist (eval_ty ty0)
   | Bty_tensor (pty, dims) -> Btyv_tensor (pty, dims)
   | Bty_simplex n -> Btyv_simplex n
+  | Bty_external type_name -> Btyv_external type_name.txt
 
 let tycheck_bop_prim bop pty1 pty2 =
   match bop.txt, pty1, pty2 with
