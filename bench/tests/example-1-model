@@ -1,0 +1,13 @@
+type Latent
+type Observation
+
+proc Model() -> preal | lat : Latent | obs : Observation = {
+  v <- observe{lat}(GAMMA(2; 1));
+  if{lat} v < 2.0 then
+    _ <- sample{obs}(NORMAL(-1.0; 1));
+    return v
+  else
+    m <- observe{lat}(BETA(3; 1));
+    _ <- sample{obs}(NORMAL(m; 1));
+    return v
+}

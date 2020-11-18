@@ -133,8 +133,18 @@ toplevel:
     { Top_external (var_name, ty) }
 
 proc_sig:
-  | LPAREN; psig_param_tys = separated_list(SEMI, param_ty); RPAREN; MINUSGREATER; psig_ret_ty = base_ty; BAR; psig_sess_left = chtype; BAR; psig_sess_right = chtype
-    { { psig_param_tys; psig_ret_ty; psig_sess_left; psig_sess_right } }
+  | psig_theta_tys = proc_theta; LPAREN; psig_param_tys = separated_list(SEMI, param_ty); RPAREN; MINUSGREATER; psig_ret_ty = base_ty; BAR; psig_sess_left = chtype; BAR; psig_sess_right = chtype
+    { { psig_theta_tys; psig_param_tys; psig_ret_ty; psig_sess_left; psig_sess_right } }
+
+proc_theta:
+  |
+    { [] }
+  | LBRACKET; theta_tys = separated_list(SEMI, theta_ty); RBRACKET
+    { theta_tys }
+
+theta_ty:
+  | var_name = mkloc(LIDENT); COLON; pty = prim_ty
+    { (var_name, pty) }
 
 param_ty:
   | var_name = mkloc(LIDENT); COLON; bty = base_ty

@@ -17,12 +17,3 @@ proc Model() -> nat | lat : Latent | obs : Observation = {
   y <- sample{obs}(POIS(l));
   return r
 }
-
-proc Guide() -> unit | . | lat : Latent = {
-  r <- sample{lat}(GEO(0.125));
-  if{lat} . then
-    return ()
-  else
-    t <- sample{lat}(GEO(0.125));
-    return ()
-}

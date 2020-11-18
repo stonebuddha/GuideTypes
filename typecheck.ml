@@ -398,7 +398,8 @@ let collect_sess_tys prog =
     ))
 
 let eval_proc_sig psig =
-  { psigv_param_tys = List.map psig.psig_param_tys ~f:(fun (var_name, ty) -> (var_name.txt, eval_ty ty))
+  { psigv_theta_tys = List.map psig.psig_theta_tys ~f:(fun (var_name, pty) -> (var_name.txt, pty))
+  ; psigv_param_tys = List.map psig.psig_param_tys ~f:(fun (var_name, ty) -> (var_name.txt, eval_ty ty))
   ; psigv_ret_ty = eval_ty psig.psig_ret_ty
   ; psigv_sess_left = Option.map psig.psig_sess_left ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
   ; psigv_sess_right = Option.map psig.psig_sess_right ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
@@ -644,7 +645,11 @@ let tycheck_cmd psig_ctxt =
 
 let tycheck_proc sty_ctxt psig_ctxt ext_ctxt proc =
   let psigv = eval_proc_sig proc.proc_sig in
-  let%bind ctxt = String.Map.of_alist_or_error (List.append ext_ctxt psigv.psigv_param_tys) in
+  let%bind ctxt = String.Map.of_alist_or_error
+      (List.concat
+         [ ext_ctxt
+         ; (List.map psigv.psigv_theta_tys ~f:(fun (var_name, pty) -> (var_name, Btyv_prim pty)))
+         ; psigv.psigv_param_tys]) in
   let%bind (tyv, sess_left, sess_right) = tycheck_cmd psig_ctxt ctxt
       (Option.map psigv.psigv_sess_left ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       (Option.map psigv.psigv_sess_right ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))

@@ -1,0 +1,10 @@
+type Latent
+
+proc Guide[a: preal; b: preal; c: preal; d: preal]() -> unit | . | lat : Latent = {
+  v <- sample{lat}(GAMMA(a; b));
+  if{lat} . then
+    return ()
+  else
+    _ <- sample{lat}(BETA(c; d));
+    return ()
+}

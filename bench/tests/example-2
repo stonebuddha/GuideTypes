@@ -1,0 +1,18 @@
+type Latent
+type LatentG
+
+proc Pcfg() -> unit | lat : Latent | . = {
+  k <- observe{lat}(BETA(3; 1));
+  PcfgGen(k)
+}
+
+proc PcfgGen(k: ureal) -> unit | lat : LatentG | . = {
+  u <- observe{lat}(UNIF);
+  if{lat} u < k then
+    v <- observe{lat}(NORMAL(0; 1));
+    return ()
+  else
+    lhs <- PcfgGen(k);
+    rhs <- PcfgGen(k);
+    return ()
+}
