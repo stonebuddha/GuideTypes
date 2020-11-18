@@ -44,6 +44,11 @@ let compile_for_model prog =
       Compile.emit_prog_for_model Format.std_formatter prog
     )
 
+let compile_for_importance_proposal model proposal =
+  Timer.wrap_duration "emission" (fun () ->
+      Compile.emit_prog_for_importance_proposal Format.std_formatter model proposal
+    )
+
 let cmd_only_parse =
   Command.basic ~summary:"only parse" (
     let open Command.Let_syntax in
@@ -106,12 +111,34 @@ let cmd_compile_model =
       report_result result
   )
 
+let cmd_compile_importance_proposal =
+  Command.basic ~summary:"compile (importance proposal)" (
+    let open Command.Let_syntax in
+    let%map_open model_name = flag "-model" (required Filename.arg_type) ~doc:" model"
+    and proposal_name = flag "-proposal" (required Filename.arg_type) ~doc:" proposal"
+    in
+    fun () ->
+      let result =
+        let open Or_error.Let_syntax in
+        let%bind model_prog = parse_file model_name in
+        let%bind proposal_prog = parse_file proposal_name in
+        let%bind () = typecheck model_prog in
+        let%bind () = typecheck proposal_prog in
+        let model_iprog = anf model_prog in
+        let proposal_iprog = anf proposal_prog in
+        let () = compile_for_importance_proposal model_iprog proposal_iprog in
+        Ok (model_iprog, proposal_iprog)
+      in
+      report_result result
+  )
+
 let cmd_route =
   Command.group ~summary:"CommInfer" [
     ("only-parse", cmd_only_parse);
     ("type-check", cmd_type_check);
     ("normalize", cmd_normalize);
     ("compile-m", cmd_compile_model);
+    ("compile-is", cmd_compile_importance_proposal);
   ]
 
 let () =

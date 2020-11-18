@@ -84,11 +84,11 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
     Format.fprintf fmt "%sself.%s += 1@." lev ("_" ^ channel_name ^ "cnt");
     begin
       match comm with
-      | Some (_, comm_r) ->
+      | Some comm when String.(comm = channel_name) ->
         emit_ret_or_bnd ?bind lev fmt (fun fmt () ->
-            Format.fprintf fmt "helper_%s.switch()" (Map.find_exn comm_r channel_name)
+            Format.fprintf fmt "self._ctrl_p.switch()"
           ) ()
-      | None ->
+      | _ ->
         emit_ret_or_bnd ?bind lev fmt (fun fmt () ->
             Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)"
               channel_name
@@ -100,7 +100,7 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
     Format.fprintf fmt "%sself.%s += 1@." lev ("_" ^ channel_name ^ "cnt");
     begin
       match comm with
-      | Some (comm_l, _) ->
+      | Some comm when String.(comm = channel_name) ->
         let bind = Option.value_exn (Option.value_exn bind) in
         emit_ret_or_bnd ~bind:(Some bind) lev fmt (fun fmt () ->
             Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)"
@@ -109,14 +109,11 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
               emit_aexp exp0
           ) ();
         begin
-          match Map.find comm_l channel_name with
-          | None -> ()
-          | Some proc_name ->
-            emit_ret_or_bnd ~bind:None lev fmt (fun fmt () ->
-                Format.fprintf fmt "helper_%s.switch(%s)" proc_name bind
-              ) ()
+          emit_ret_or_bnd ~bind:None lev fmt (fun fmt () ->
+              Format.fprintf fmt "self._last_b = self._ctrl_m.switch(%s)" bind
+            ) ()
         end
-      | None ->
+      | _ ->
         emit_ret_or_bnd ?bind lev fmt (fun fmt () ->
             Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)"
               channel_name
@@ -128,32 +125,31 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
   | CE_cond_recv (exp1, exp2, channel_name) ->
     begin
       match comm with
-      | None ->
-        Format.fprintf fmt "%sif yield:@.%a%selse:@.%a" lev (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp1 lev (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp2
-      | Some (_, comm_r) ->
-        Format.fprintf fmt "%sif helper_%s.switch():@.%a%selse:@.%a"
-          lev (Map.find_exn comm_r channel_name)
-          (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp1
+      | Some comm when String.(comm = channel_name) ->
+        Format.fprintf fmt "%sif self._last_b:@.%sself._ctrl_m.switch()@.%a%selse:@.%sself._ctrl_m.switch()@.%a"
           lev
-          (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp2
+          (lev ^ tab)
+          (emit_iexp ~comm:(Some comm) ~extra ?bind (lev ^ tab)) exp1
+          lev
+          (lev ^ tab)
+          (emit_iexp ~comm:(Some comm) ~extra ?bind (lev ^ tab)) exp2
+      | _ ->
+        Format.fprintf fmt "%sif yield:@.%a%selse:@.%a" lev (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp1 lev (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp2
     end
 
   | CE_cond_send (exp0, exp1, exp2, channel_name) ->
     begin
       match comm with
-      | None ->
+      | Some comm when String.(comm = channel_name) ->
+        Format.fprintf fmt "%sif %a:@.%sself._ctrl_p.switch(True)@.%a%selse:@.%sself._ctrl_p.switch(False)@.%a"
+          lev emit_aexp exp0
+          (lev ^ tab)
+          (emit_iexp ~comm:(Some comm) ~extra ?bind (lev ^ tab)) exp1
+          lev
+          (lev ^ tab)
+          (emit_iexp ~comm:(Some comm) ~extra ?bind (lev ^ tab)) exp2
+      | _ ->
         Format.fprintf fmt "%sif %a:@.%a%selse:@.%a" lev emit_aexp exp0 (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp1 lev (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp2
-      | Some (comm_l, _) ->
-        match Map.find comm_l channel_name with
-        | None -> Format.fprintf fmt "%sif %a:@.%a%selse:@.%a" lev emit_aexp exp0 (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp1 lev (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp2
-        | Some proc_name ->
-          Format.fprintf fmt "%sif %a:@.%shelper_%s.switch(True)@.%a%selse:@.%shelper_%s.switch(False)@.%a"
-            lev emit_aexp exp0
-            (lev ^ tab) proc_name
-            (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp1
-            lev
-            (lev ^ tab) proc_name
-            (emit_iexp ~comm ~extra ?bind (lev ^ tab)) exp2
     end
 
   | CE_iter (exp1, exp2, iter_name, bind_name, exp3) ->
@@ -226,24 +222,32 @@ let emit_prog_for_model fmt prog =
         let field_name = "_" ^ channel_name ^ "cnt" in
         Format.fprintf fmt "%sself.%s = 0@." (tab ^ tab) field_name);
   Format.fprintf fmt "%sreturn self.%s(%a)@." (tab ^ tab) model_proc_name
-    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") (fun fmt s -> Format.fprintf fmt ", %s" s)) (model_proc.iproc_sig.ipsig_params);
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") (fun fmt s -> Format.fprintf fmt "%s" s)) (model_proc.iproc_sig.ipsig_params);
   List.iter prog ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:None tab) top)
 
-(* let emit_prog_for_guide fmt prog =
-   let (model_proc_name, model_proc) = List.hd_exn prog in
-   Format.fprintf fmt
-    "def Importance_for_%s(%a):@."
-    model_proc_name
-    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") String.pp) (model_proc.iproc_sig.ipsig_params);
-   let comm_l = String.Map.of_alist_exn (List.filter_map prog ~f:(fun (proc_name, proc) -> Option.map proc.iproc_sig.ipsig_sess_left ~f:(fun channel_name -> (channel_name, proc_name)))) in
-   let comm_r = String.Map.of_alist_exn (List.filter_map prog ~f:(fun (proc_name, proc) -> Option.map proc.iproc_sig.ipsig_sess_right ~f:(fun channel_name -> (channel_name, proc_name)))) in
-   List.iter prog ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:(Some (comm_l, comm_r)) tab) top);
-   Format.fprintf fmt "@.";
-   List.iter prog ~f:(fun (proc_name, _) -> Format.fprintf fmt "%shelper_%s = greenlet(%s)@." tab proc_name proc_name);
-   Format.fprintf fmt "@.";
-   Format.fprintf fmt "%shelper_%s.switch()@." tab model_proc_name *)
+let emit_prog_for_importance_proposal fmt prog_m prog_p =
+  let (model_proc_name, model_proc) = List.hd_exn prog_m in
+  let (proposal_proc_name, proposal_proc) = List.hd_exn prog_p in
+  assert (List.is_empty proposal_proc.iproc_sig.ipsig_params);
+  let comm = Option.value_exn model_proc.iproc_sig.ipsig_sess_left in
 
-(* let emit_prog_for_importance fmt prog =
-   emit_prog_for_model fmt prog;
-   Format.fprintf fmt "@.";
-   emit_prog_for_guide fmt prog *)
+  Format.fprintf fmt
+    "class Proposal_for_%s:@."
+    model_proc_name;
+  Format.fprintf fmt
+    "%sdef run(self%a):@."
+    tab
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "") (fun fmt s -> Format.fprintf fmt ", %s" s)) (model_proc.iproc_sig.ipsig_params);
+  List.iter
+    (List.append (Option.to_list model_proc.iproc_sig.ipsig_sess_left) (Option.to_list model_proc.iproc_sig.ipsig_sess_right))
+    ~f:(fun channel_name ->
+        let field_name = "_" ^ channel_name ^ "cnt" in
+        Format.fprintf fmt "%sself.%s = 0@." (tab ^ tab) field_name);
+  Format.fprintf fmt "%sself._ctrl_m = greenlet(self.%s)@." (tab ^ tab) model_proc_name;
+  Format.fprintf fmt "%sself._ctrl_p = greenlet(self.%s)@." (tab ^ tab) proposal_proc_name;
+  Format.fprintf fmt "%sself._last_b = None@." (tab ^ tab);
+  Format.fprintf fmt "%sreturn self._ctrl_m.switch(%a)@." (tab ^ tab)
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") (fun fmt s -> Format.fprintf fmt "%s" s)) (model_proc.iproc_sig.ipsig_params);
+
+  List.iter prog_m ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:(Some comm) tab) top);
+  List.iter prog_p ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:(Some comm) tab) top)
