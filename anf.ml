@@ -218,7 +218,7 @@ and normalize_cmd_term cmd =
   normalize_cmd cmd (fun nexp -> IE_tail nexp)
 
 let normalize_proc_sig psig =
-  { ipsig_params = List.map psig.psig_param_tys ~f:(fun (param_name, _) -> param_name.txt);
+  { ipsig_params = List.map (List.append psig.psig_theta_tys psig.psig_param_tys) ~f:(fun (param_name, _) -> param_name.txt);
     ipsig_sess_left = Option.map psig.psig_sess_left ~f:(fun (channel_name, _) -> channel_name.txt);
     ipsig_sess_right = Option.map psig.psig_sess_right ~f:(fun (channel_name, _) -> channel_name.txt);
   }

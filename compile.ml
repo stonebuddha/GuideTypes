@@ -88,6 +88,7 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
             Format.fprintf fmt "self._ctrl_p.switch()"
           ) ()
       | _ ->
+        Format.fprintf fmt "%sself.%s += 1@." lev ("_" ^ channel_name ^ "cnt");
         emit_ret_or_bnd ?bind lev fmt (fun fmt () ->
             Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)"
               channel_name
@@ -112,13 +113,14 @@ let rec emit_cexp ~comm ~extra ?bind lev fmt = function
               Format.fprintf fmt "self._last_b = self._ctrl_m.switch(%s)" bind
             ) ()
         end
-      | _ ->
+      | None ->
         emit_ret_or_bnd ?bind lev fmt (fun fmt () ->
             Format.fprintf fmt "pyro.sample(\"%s_\" + str(%s), %a)"
               channel_name
               ("self._" ^ channel_name ^ "cnt")
               emit_aexp exp0
           ) ()
+      | _ -> ()
     end
 
   | CE_cond_recv (exp1, exp2, channel_name) ->
@@ -227,26 +229,35 @@ let emit_prog_for_model fmt prog =
 let emit_prog_for_importance_proposal fmt prog_m prog_p =
   let (model_proc_name, model_proc) = List.hd_exn prog_m in
   let (proposal_proc_name, proposal_proc) = List.hd_exn prog_p in
-  assert (List.is_empty proposal_proc.iproc_sig.ipsig_params);
   let comm = Option.value_exn model_proc.iproc_sig.ipsig_sess_left in
 
   Format.fprintf fmt
     "class Proposal_for_%s:@."
     model_proc_name;
   Format.fprintf fmt
-    "%sdef run(self%a):@."
+    "%sdef run(self%a%a):@."
     tab
-    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "") (fun fmt s -> Format.fprintf fmt ", %s" s)) (model_proc.iproc_sig.ipsig_params);
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "") (fun fmt s -> Format.fprintf fmt ", _m_%s" s)) (model_proc.iproc_sig.ipsig_params)
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "") (fun fmt s -> Format.fprintf fmt ", _p_%s" s)) (proposal_proc.iproc_sig.ipsig_params);
   List.iter
     (List.append (Option.to_list model_proc.iproc_sig.ipsig_sess_left) (Option.to_list model_proc.iproc_sig.ipsig_sess_right))
     ~f:(fun channel_name ->
         let field_name = "_" ^ channel_name ^ "cnt" in
         Format.fprintf fmt "%sself.%s = 0@." (tab ^ tab) field_name);
-  Format.fprintf fmt "%sself._ctrl_m = greenlet(self.%s)@." (tab ^ tab) model_proc_name;
-  Format.fprintf fmt "%sself._ctrl_p = greenlet(self.%s)@." (tab ^ tab) proposal_proc_name;
+  Format.fprintf fmt "%sdef _wrap_m():@." (tab ^ tab);
+  Format.fprintf fmt "%sreturn self.%s(%a)@."
+    (tab ^ tab ^ tab)
+    model_proc_name
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") (fun fmt s -> Format.fprintf fmt "_m_%s" s)) (model_proc.iproc_sig.ipsig_params);
+  Format.fprintf fmt "%sdef _wrap_p():@." (tab ^ tab);
+  Format.fprintf fmt "%sreturn self.%s(%a)@."
+    (tab ^ tab ^ tab)
+    proposal_proc_name
+    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") (fun fmt s -> Format.fprintf fmt "_p_%s" s)) (proposal_proc.iproc_sig.ipsig_params);
+  Format.fprintf fmt "%sself._ctrl_m = greenlet(_wrap_m)@." (tab ^ tab);
+  Format.fprintf fmt "%sself._ctrl_p = greenlet(_wrap_p)@." (tab ^ tab);
   Format.fprintf fmt "%sself._last_b = None@." (tab ^ tab);
-  Format.fprintf fmt "%sreturn self._ctrl_m.switch(%a)@." (tab ^ tab)
-    (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") (fun fmt s -> Format.fprintf fmt "%s" s)) (model_proc.iproc_sig.ipsig_params);
+  Format.fprintf fmt "%sreturn self._ctrl_m.switch()@." (tab ^ tab);
 
   List.iter prog_m ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:(Some comm) tab) top);
   List.iter prog_p ~f:(fun top -> Format.fprintf fmt "@.%a" (emit_proc ~comm:(Some comm) tab) top)

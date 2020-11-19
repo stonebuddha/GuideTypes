@@ -133,7 +133,7 @@ type sess_tyv =
 [@@deriving equal]
 
 type proc_sig = {
-  psig_theta_tys: (variable_id * prim_ty) list;
+  psig_theta_tys: (variable_id * base_ty) list;
   psig_param_tys: (variable_id * base_ty) list;
   psig_ret_ty: base_ty;
   psig_sess_left: (channel_id * type_id) option;
@@ -141,7 +141,7 @@ type proc_sig = {
 }
 
 type proc_sigv = {
-  psigv_theta_tys: (string * prim_ty) list;
+  psigv_theta_tys: (string * base_tyv) list;
   psigv_param_tys: (string * base_tyv) list;
   psigv_ret_ty: base_tyv;
   psigv_sess_left: (string * string) option;

@@ -144,7 +144,7 @@ proc_theta:
     { theta_tys }
 
 theta_ty:
-  | var_name = mkloc(LIDENT); COLON; pty = prim_ty
+  | var_name = mkloc(LIDENT); COLON; pty = base_ty
     { (var_name, pty) }
 
 param_ty:
