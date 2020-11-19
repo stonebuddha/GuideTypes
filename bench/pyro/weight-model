@@ -1,0 +1,8 @@
+type Latent
+type Observation
+
+proc Model() -> real | lat : Latent | obs : Observation = {
+  weight <- observe{lat}(NORMAL(8.5; 1));
+  y <- sample{obs}(NORMAL(weight; 0.75));
+  return weight
+}

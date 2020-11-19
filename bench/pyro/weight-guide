@@ -1,0 +1,6 @@
+type Latent
+
+proc Guide[a: real; b: preal]() -> unit | . | lat : Latent = {
+  weight <- sample{lat}(NORMAL(a; b));
+  return ()
+}
