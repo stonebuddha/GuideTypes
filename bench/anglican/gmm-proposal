@@ -1,0 +1,22 @@
+type Latent
+
+external identity_matrix2: (real; [2; 2]) tensor
+
+external dirichlet3: (preal; [3]) tensor -> simplex[3] dist
+external wishart2: (real; [2; 2]) tensor -> real -> (real; [2; 2]) tensor dist
+external mvn2: (real; [2]) tensor -> (real; [2; 2]) tensor -> (real; [2]) tensor dist
+
+proc Proposal() -> unit | . | lat : Latent = {
+  pi <- sample{lat}(dirichlet3(stack(tensor(1.0); tensor(1.0); tensor(1.0))));
+  _ <- sample{lat}(wishart2(identity_matrix2)(3));
+  _ <- sample{lat}(wishart2(identity_matrix2)(3));
+  _ <- sample{lat}(wishart2(identity_matrix2)(3));
+  mu_0 <- { return stack(tensor(0); tensor(0)) };
+  _ <- sample{lat}(mvn2(mu_0)(identity_matrix2));
+  _ <- sample{lat}(mvn2(mu_0)(identity_matrix2));
+  _ <- sample{lat}(mvn2(mu_0)(identity_matrix2));
+  _ <- loop[100; ()] (fn (acc: unit) ->
+    _ <- sample{lat}(DISC(pi));
+    return ());
+  return ()
+}
