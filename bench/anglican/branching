@@ -1,6 +1,13 @@
 # https://probprog.github.io/anglican/examples/viewer/?worksheet=aistats/branching-aistats
 
-external fib: nat -> nat
+func fib_helper(n: int; a: nat; b: nat) -> nat =
+  if n <= 0 then
+    a
+  else
+    fib_helper(n - 1; b; a + b)
+
+func fib(n: nat) -> nat =
+  fib_helper(n; 0; 1)
 
 type Latent
 type Observation

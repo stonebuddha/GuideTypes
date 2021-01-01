@@ -3,5 +3,5 @@
 
 (executable
   (name comminfer)
-  (libraries core compiler-libs.common menhirLib)
+  (libraries core compiler-libs.common menhirLib torch)
   (preprocess (pps ppx_jane)))

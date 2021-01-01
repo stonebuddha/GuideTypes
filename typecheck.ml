@@ -9,7 +9,8 @@ let is_prim_numeric = function
   | Pty_preal
   | Pty_real
   | Pty_fnat _
-  | Pty_nat -> true
+  | Pty_nat
+  | Pty_int -> true
   | _ -> false
 
 let is_prim_subtype pty1 pty2 =
@@ -23,26 +24,34 @@ let is_prim_subtype pty1 pty2 =
   | Pty_preal, Pty_real -> true
   | Pty_real, Pty_real -> true
   | Pty_fnat n, Pty_fnat m -> n <= m
-  | Pty_fnat _, Pty_nat -> true
+  | Pty_fnat _, Pty_nat
+  | Pty_fnat _, Pty_int -> true
   | Pty_fnat n, Pty_ureal -> n <= 2
   | Pty_fnat _, Pty_preal
   | Pty_fnat _, Pty_real -> true
   | Pty_nat, Pty_nat
+  | Pty_nat, Pty_int
   | Pty_nat, Pty_preal
   | Pty_nat, Pty_real -> true
+  | Pty_int, Pty_int
+  | Pty_int, Pty_real -> true
   | _ -> false
+
+let equal_shape = List.equal Int.equal
 
 let rec is_subtype tyv1 tyv2 =
   match tyv1, tyv2 with
   | Btyv_prim pty1, Btyv_prim pty2 -> is_prim_subtype pty1 pty2
   | Btyv_dist tyv1', Btyv_dist tyv2' -> equal_base_tyv tyv1' tyv2'
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) -> is_subtype tyv21 tyv11 && is_subtype tyv12 tyv22
-  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) -> is_prim_subtype pty1 pty2
+  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when equal_shape dims1 dims2 -> is_prim_subtype pty1 pty2
   | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 -> true
-  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) -> is_prim_subtype Pty_ureal pty2
-  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) -> is_prim_subtype pty1 Pty_ureal
-  | Btyv_external name1, Btyv_external name2 -> String.(name1 = name2)
-  | Btyv_product (tyv11, tyv12), Btyv_product (tyv21, tyv22) -> is_subtype tyv11 tyv21 && is_subtype tyv12 tyv22
+  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when equal_shape [n1] dims2 -> is_prim_subtype Pty_ureal pty2
+  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] -> is_prim_subtype pty1 Pty_ureal
+  | Btyv_external name1, Btyv_external name2 -> equal_long_ident name1 name2
+  | Btyv_product tyvs1, Btyv_product tyvs2 ->
+    List.length tyvs1 = List.length tyvs2
+    && List.for_all2_exn tyvs1 tyvs2 ~f:is_subtype
   | _ -> false
 
 let join_prim ~loc pty1 pty2 =
@@ -75,23 +84,31 @@ let rec join_type ~loc tyv1 tyv2 =
     let%bind tyv1' = meet_type ~loc tyv11 tyv21 in
     let%bind tyv2' = join_type ~loc tyv12 tyv22 in
     Ok (Btyv_arrow (tyv1', tyv2'))
-  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) ->
+  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when equal_shape dims1 dims2 ->
     let%bind pty = join_prim ~loc pty1 pty2 in
     Ok (Btyv_tensor (pty, dims1))
   | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 ->
     Ok (Btyv_simplex n1)
-  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) ->
+  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when equal_shape [n1] dims2 ->
     let%bind pty = join_prim ~loc Pty_ureal pty2 in
     Ok (Btyv_tensor (pty, [n1]))
-  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) ->
+  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] ->
     let%bind pty = join_prim ~loc pty1 Pty_ureal in
     Ok (Btyv_tensor (pty, dims1))
-  | Btyv_external name1, Btyv_external name2 when String.(name1 = name2) ->
+  | Btyv_external name1, Btyv_external name2 when equal_long_ident name1 name2 ->
     Ok (Btyv_external name1)
-  | Btyv_product (tyv11, tyv12), Btyv_product (tyv21, tyv22) ->
-    let%bind tyv1' = join_type ~loc tyv11 tyv21 in
-    let%bind tyv2' = join_type ~loc tyv12 tyv22 in
-    Ok (Btyv_product (tyv1', tyv2'))
+  | Btyv_product tyvs1, Btyv_product tyvs2 ->
+    if List.length tyvs1 <> List.length tyvs2 then
+      Or_error.of_exn (Type_error ("mismatched tuple sizes", loc))
+    else
+      let%bind tyvs = List.fold_result (List.zip_exn tyvs1 tyvs2)
+          ~init:[]
+          ~f:(fun acc (tyv1, tyv2) ->
+              let%bind tyv' = join_type ~loc tyv1 tyv2 in
+              Ok (tyv' :: acc)
+            )
+      in
+      Ok (Btyv_product (List.rev tyvs))
   | _ ->
     Or_error.of_exn (Type_error ("join error", loc))
 
@@ -109,23 +126,31 @@ and meet_type ~loc tyv1 tyv2 =
     let%bind tyv1' = join_type ~loc tyv11 tyv21 in
     let%bind tyv2' = meet_type ~loc tyv12 tyv22 in
     Ok (Btyv_arrow (tyv1', tyv2'))
-  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) ->
+  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when equal_shape dims1 dims2 ->
     let%bind pty = meet_prim ~loc pty1 pty2 in
     Ok (Btyv_tensor (pty, dims1))
   | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 ->
     Ok (Btyv_simplex n1)
-  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) ->
+  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when equal_shape [n1] dims2 ->
     let%bind pty = meet_prim ~loc Pty_ureal pty2 in
     Ok (Btyv_tensor (pty, [n1]))
-  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) ->
+  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] ->
     let%bind pty = meet_prim ~loc pty1 Pty_ureal in
     Ok (Btyv_tensor (pty, dims1))
-  | Btyv_external name1, Btyv_external name2 when String.(name1 = name2) ->
+  | Btyv_external name1, Btyv_external name2 when equal_long_ident name1 name2 ->
     Ok (Btyv_external name1)
-  | Btyv_product (tyv11, tyv12), Btyv_product (tyv21, tyv22) ->
-    let%bind tyv1' = meet_type ~loc tyv11 tyv21 in
-    let%bind tyv2' = meet_type ~loc tyv12 tyv22 in
-    Ok (Btyv_product (tyv1', tyv2'))
+  | Btyv_product tyvs1, Btyv_product tyvs2 ->
+    if List.length tyvs1 <> List.length tyvs2 then
+      Or_error.of_exn (Type_error ("mismatched tuple sizes", loc))
+    else
+      let%bind tyvs = List.fold_result (List.zip_exn tyvs1 tyvs2)
+          ~init:[]
+          ~f:(fun acc (tyv1, tyv2) ->
+              let%bind tyv' = meet_type ~loc tyv1 tyv2 in
+              Ok (tyv' :: acc)
+            )
+      in
+      Ok (Btyv_product (List.rev tyvs))
   | _ ->
     Or_error.of_exn (Type_error ("meet error", loc))
 
@@ -137,7 +162,7 @@ let rec eval_ty ty =
   | Bty_tensor (pty, dims) -> Btyv_tensor (pty, dims)
   | Bty_simplex n -> Btyv_simplex n
   | Bty_external type_name -> Btyv_external type_name.txt
-  | Bty_product (ty1, ty2) -> Btyv_product (eval_ty ty1, eval_ty ty2)
+  | Bty_product tys -> Btyv_product (List.map tys ~f:eval_ty)
 
 let tycheck_bop_prim bop pty1 pty2 =
   match bop.txt, pty1, pty2 with
@@ -152,8 +177,13 @@ let tycheck_bop_prim bop pty1 pty2 =
   | Bop_add, Pty_real, Pty_real -> Ok Pty_real
   | Bop_add, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n + m))
   | Bop_add, Pty_fnat _, Pty_nat -> Ok Pty_nat
+  | Bop_add, Pty_fnat _, Pty_int -> Ok Pty_int
   | Bop_add, Pty_nat, Pty_fnat _
   | Bop_add, Pty_nat, Pty_nat -> Ok Pty_nat
+  | Bop_add, Pty_nat, Pty_int -> Ok Pty_int
+  | Bop_add, Pty_int, Pty_fnat _
+  | Bop_add, Pty_int, Pty_nat
+  | Bop_add, Pty_int, Pty_int -> Ok Pty_int
 
   | Bop_sub, Pty_ureal, Pty_ureal
   | Bop_sub, Pty_ureal, Pty_preal
@@ -164,6 +194,15 @@ let tycheck_bop_prim bop pty1 pty2 =
   | Bop_sub, Pty_real, Pty_ureal
   | Bop_sub, Pty_real, Pty_preal
   | Bop_sub, Pty_real, Pty_real -> Ok Pty_real
+  | Bop_sub, Pty_fnat _, Pty_fnat _
+  | Bop_sub, Pty_fnat _, Pty_nat
+  | Bop_sub, Pty_fnat _, Pty_int -> Ok Pty_int
+  | Bop_sub, Pty_nat, Pty_fnat _
+  | Bop_sub, Pty_nat, Pty_nat
+  | Bop_sub, Pty_nat, Pty_int -> Ok Pty_int
+  | Bop_sub, Pty_int, Pty_fnat _
+  | Bop_sub, Pty_int, Pty_nat
+  | Bop_sub, Pty_int, Pty_int -> Ok Pty_int
 
   | Bop_mul, Pty_ureal, Pty_ureal -> Ok Pty_ureal
   | Bop_mul, Pty_ureal, Pty_preal -> Ok Pty_preal
@@ -176,8 +215,13 @@ let tycheck_bop_prim bop pty1 pty2 =
   | Bop_mul, Pty_real, Pty_real -> Ok Pty_real
   | Bop_mul, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n * m))
   | Bop_mul, Pty_fnat _, Pty_nat -> Ok Pty_nat
+  | Bop_mul, Pty_fnat _, Pty_int -> Ok Pty_int
   | Bop_mul, Pty_nat, Pty_fnat _
   | Bop_mul, Pty_nat, Pty_nat -> Ok Pty_nat
+  | Bop_mul, Pty_nat, Pty_int -> Ok Pty_int
+  | Bop_mul, Pty_int, Pty_fnat _
+  | Bop_mul, Pty_int, Pty_nat
+  | Bop_mul, Pty_int, Pty_int -> Ok Pty_int
 
   | Bop_div, Pty_ureal, Pty_ureal
   | Bop_div, Pty_ureal, Pty_preal -> Ok Pty_preal
@@ -207,27 +251,41 @@ let tycheck_bop bop arg1 arg2 =
   | Btyv_prim pty1, Btyv_prim pty2 ->
     let%bind res = tycheck_bop_prim bop pty1 pty2 in
     Ok (Btyv_prim res)
-  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when Poly.(dims1 = dims2) ->
+  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when equal_shape dims1 dims2 ->
     let%bind res = tycheck_bop_prim bop pty1 pty2 in
     Ok (Btyv_tensor (res, dims1))
   | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 ->
     Ok (Btyv_tensor (Pty_preal, [n1]))
-  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when Poly.([n1] = dims2) ->
+  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when equal_shape [n1] dims2 ->
     let%bind pty = tycheck_bop_prim bop Pty_ureal pty2 in
     Ok (Btyv_tensor (pty, [n1]))
-  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when Poly.(dims1 = [n2]) ->
+  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] ->
     let%bind pty = tycheck_bop_prim bop pty1 Pty_ureal in
     Ok (Btyv_tensor (pty, dims1))
   | _ ->
     Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
 
+let lookup_ctx (libs, cur) lid =
+  match lid with
+  | Lident_name name ->
+    Map.find cur name
+  | Lident_path (lib_name, name) ->
+    begin
+      match Map.find libs lib_name with
+      | None -> None
+      | Some lib -> Map.find lib name
+    end
+
+let update_ctx (libs, cur) ~key ~data =
+  (libs, Map.set cur ~key ~data)
+
 let rec tycheck_exp ctxt exp =
   match exp.exp_desc with
   | E_var var_name ->
     begin
-      match Map.find ctxt var_name.txt with
+      match lookup_ctx ctxt var_name.txt with
       | Some tyv -> Ok tyv
-      | None -> Or_error.of_exn (Type_error ("undefined variable " ^ var_name.txt, exp.exp_loc))
+      | None -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident var_name.txt, exp.exp_loc))
     end
   | E_triv -> Ok (Btyv_prim Pty_unit)
   | E_bool _ -> Ok (Btyv_prim Pty_bool)
@@ -250,14 +308,14 @@ let rec tycheck_exp ctxt exp =
     if n >= 0 then
       Ok (Btyv_prim (Pty_fnat (n + 1)))
     else
-      Or_error.of_exn (Type_error ("negative integers", exp.exp_loc))
+      Ok (Btyv_prim Pty_int)
   | E_binop (bop, exp1, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
     let%bind tyv2 = tycheck_exp ctxt exp2 in
     tycheck_bop bop tyv1 tyv2
   | E_abs (var_name, ty, exp0) ->
     let tyv = eval_ty ty in
-    let%bind tyv0 = tycheck_exp (Map.set ctxt ~key:var_name.txt ~data:tyv) exp0 in
+    let%bind tyv0 = tycheck_exp (update_ctx ctxt ~key:var_name.txt ~data:tyv) exp0 in
     Ok (Btyv_arrow (tyv, tyv0))
   | E_app (exp1, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
@@ -274,7 +332,7 @@ let rec tycheck_exp ctxt exp =
     end
   | E_let (exp1, var_name, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
-    let%bind ctxt' = Or_error.try_with (fun () -> Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
+    let ctxt' = update_ctx ctxt ~key:var_name.txt ~data:tyv1 in
     tycheck_exp ctxt' exp2
   | E_dist dist ->
     let%bind tyv = tycheck_dist ~loc:exp.exp_loc ctxt dist in
@@ -296,7 +354,7 @@ let rec tycheck_exp ctxt exp =
       ) in
     let (pty, dims) = List.hd_exn ptys in
     let%bind join_pty = List.fold_result ptys ~init:pty ~f:(fun acc (pty', dims') ->
-        if Poly.(dims = dims') then
+        if equal_shape dims dims' then
           join_prim ~loc:exp.exp_loc acc pty'
         else
           Or_error.of_exn (Type_error ("not stackable", exp.exp_loc))
@@ -324,19 +382,22 @@ let rec tycheck_exp ctxt exp =
       | _ ->
         Or_error.of_exn (Type_error ("not indexable", base_exp.exp_loc))
     end
-  | E_pair (exp1, exp2) ->
-    let%bind tyv1 = tycheck_exp ctxt exp1 in
-    let%bind tyv2 = tycheck_exp ctxt exp2 in
-    Ok (Btyv_product (tyv1, tyv2))
+  | E_tuple exps ->
+    let%bind tyvs = List.fold_result exps
+        ~init:[]
+        ~f:(fun acc exp ->
+            let%bind tyv = tycheck_exp ctxt exp in
+            Ok (tyv :: acc)
+          )
+    in
+    Ok (Btyv_product (List.rev tyvs))
   | E_field (exp0, field) ->
     let%bind tyv0 = tycheck_exp ctxt exp0 in
     begin
       match tyv0 with
-      | Btyv_product (tyv1, tyv2) ->
-        if field = 0 then
-          Ok tyv1
-        else if field = 1 then
-          Ok tyv2
+      | Btyv_product tyvs ->
+        if field >= 0 && field < List.length tyvs then
+          Ok (List.nth_exn tyvs field)
         else
           Or_error.of_exn (Type_error ("invalid field", exp.exp_loc))
       | _ ->
@@ -362,7 +423,7 @@ and tycheck_dist ~loc ctxt dist =
               | None -> Ok (Some (Some dims))
               | Some None -> Or_error.of_exn (Type_error ("mixed tensors and scalars", loc))
               | Some (Some dims') ->
-                if Poly.(dims = dims') then
+                if equal_shape dims dims' then
                   Ok (Some (Some dims))
                 else
                   Or_error.of_exn (Type_error ("inconsistent tensor dims", loc))
@@ -448,7 +509,7 @@ let collect_sess_tys prog =
       match top with
       | Top_proc _ -> None
       | Top_sess (type_name, sty) -> Some (type_name.txt, Option.map ~f:eval_sty sty)
-      | Top_external _ -> None
+      | Top_func _ -> None
     ))
 
 let eval_proc_sig psig =
@@ -464,16 +525,22 @@ let collect_proc_sigs prog =
       match top with
       | Top_sess _ -> None
       | Top_proc (proc_name, { proc_sig; _ }) -> Some (proc_name.txt, eval_proc_sig proc_sig)
-      | Top_external _ -> None
+      | Top_func _ -> None
     ))
 
-let collect_externals prog =
-  List.filter_map prog ~f:(fun top ->
+let collect_func_sigs prog =
+  String.Map.of_alist_or_error (List.filter_map prog ~f:(fun top ->
       match top with
       | Top_sess _ -> None
       | Top_proc _ -> None
-      | Top_external (var_name, ty) -> Some (var_name.txt, eval_ty ty)
-    )
+      | Top_func (func_name, { func_param_tys ; func_ret_ty; _ }) -> Some (func_name.txt, Btyv_arrow (
+          (match func_param_tys with
+           | [] -> Btyv_prim (Pty_unit)
+           | [(_, ty)] -> eval_ty ty
+           | _ -> Btyv_product (List.map func_param_tys ~f:(fun (_, ty) -> eval_ty ty))),
+          eval_ty func_ret_ty
+        ))
+    ))
 
 let tycheck_cmd psig_ctxt =
   let rec forward ctxt cmd =
@@ -482,11 +549,11 @@ let tycheck_cmd psig_ctxt =
       tycheck_exp ctxt exp
     | M_bnd (cmd1, var_name, cmd2) ->
       let%bind tyv1 = forward ctxt cmd1 in
-      let%bind ctxt' = Or_error.try_with (fun () ->
-          match var_name with
-          | None -> ctxt
-          | Some var_name ->
-            Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
+      let ctxt' = match var_name with
+        | None -> ctxt
+        | Some var_name ->
+          update_ctx ctxt ~key:var_name.txt ~data:tyv1
+      in
       forward ctxt' cmd2
     | M_call (proc_name, exps) ->
       begin
@@ -534,7 +601,7 @@ let tycheck_cmd psig_ctxt =
       let%bind tyv = tycheck_exp ctxt init_exp in
       let bind_tyv = eval_ty bind_ty in
       if is_subtype tyv bind_tyv then
-        let ctxt' = Map.set ctxt ~key:bind_name.txt ~data:bind_tyv in
+        let ctxt' = update_ctx ctxt ~key:bind_name.txt ~data:bind_tyv in
         let%bind tyv' = forward ctxt' cmd0 in
         if is_subtype tyv' bind_tyv then
           Ok bind_tyv
@@ -551,8 +618,8 @@ let tycheck_cmd psig_ctxt =
           let%bind init_tyv = tycheck_exp ctxt init_exp in
           let bind_tyv = eval_ty bind_ty in
           if is_subtype init_tyv bind_tyv then
-            let ctxt' = Map.set ctxt ~key:iter_name.txt ~data:elem_tyv in
-            let ctxt'' = Map.set ctxt' ~key:bind_name.txt ~data:bind_tyv in
+            let ctxt' = update_ctx ctxt ~key:iter_name.txt ~data:elem_tyv in
+            let ctxt'' = update_ctx ctxt' ~key:bind_name.txt ~data:bind_tyv in
             let%bind tyv' = forward ctxt'' cmd0 in
             if is_subtype tyv' bind_tyv then
               Ok bind_tyv
@@ -570,11 +637,12 @@ let tycheck_cmd psig_ctxt =
       Ok sess
     | M_bnd (cmd1, var_name, cmd2) ->
       let%bind tyv1 = forward ctxt cmd1 in
-      let%bind ctxt' = Or_error.try_with (fun () ->
-          match var_name with
-          | None -> ctxt
-          | Some var_name ->
-            Map.add_exn ctxt ~key:var_name.txt ~data:tyv1) in
+      let ctxt' =
+        match var_name with
+        | None -> ctxt
+        | Some var_name ->
+          update_ctx ctxt ~key:var_name.txt ~data:tyv1
+      in
       let%bind sess' = backward ctxt' sess cmd2 in
       backward ctxt sess' cmd1
     | M_sample_recv (_, channel_name) ->
@@ -668,7 +736,7 @@ let tycheck_cmd psig_ctxt =
       end
     | M_loop (n, _, bind_name, bind_ty, cmd0) ->
       let bind_tyv = eval_ty bind_ty in
-      let ctxt' = Map.set ctxt ~key:bind_name.txt ~data:bind_tyv in
+      let ctxt' = update_ctx ctxt ~key:bind_name.txt ~data:bind_tyv in
       List.fold_result (List.init n ~f:(fun _ -> ())) ~init:sess
         ~f:(fun acc () -> backward ctxt' acc cmd0)
     | M_iter (iter_exp, _, iter_name, bind_name, bind_ty, cmd0) ->
@@ -678,8 +746,8 @@ let tycheck_cmd psig_ctxt =
         | Btyv_tensor (pty, dims) when List.length dims > 0 ->
           let elem_tyv = Btyv_tensor (pty, List.tl_exn dims) in
           let bind_tyv = eval_ty bind_ty in
-          let ctxt' = Map.set ctxt ~key:iter_name.txt ~data:elem_tyv in
-          let ctxt'' = Map.set ctxt' ~key:bind_name.txt ~data:bind_tyv in
+          let ctxt' = update_ctx ctxt ~key:iter_name.txt ~data:elem_tyv in
+          let ctxt'' = update_ctx ctxt' ~key:bind_name.txt ~data:bind_tyv in
           List.fold_result (List.init (List.hd_exn dims) ~f:(fun _ -> ())) ~init:sess
             ~f:(fun acc () -> backward ctxt'' acc cmd0)
         | _ ->
@@ -697,14 +765,26 @@ let tycheck_cmd psig_ctxt =
         Option.map sess_right ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty))
        )
 
-let tycheck_proc sty_ctxt psig_ctxt ext_ctxt proc =
+let tycheck_func func_ctxt func =
+  let%bind ctxt = String.Map.of_alist_or_error
+      (List.concat
+         [ Map.to_alist func_ctxt
+         ; (List.map func.func_param_tys ~f:(fun (var_name, ty) -> (var_name.txt, eval_ty ty)))]) in
+  let%bind ret_tyv = tycheck_exp (String.Map.empty, ctxt) func.func_body in
+  let decl_tyv = eval_ty func.func_ret_ty in
+  if equal_base_tyv ret_tyv decl_tyv then
+    Ok ()
+  else
+    Or_error.of_exn (Type_error ("incorrect function return type", func.func_loc))
+
+let tycheck_proc sty_ctxt psig_ctxt func_ctxt proc =
   let psigv = eval_proc_sig proc.proc_sig in
   let%bind ctxt = String.Map.of_alist_or_error
       (List.concat
-         [ ext_ctxt
+         [ Map.to_alist func_ctxt
          ; (List.map psigv.psigv_theta_tys ~f:(fun (var_name, pty) -> (var_name, pty)))
          ; psigv.psigv_param_tys]) in
-  let%bind (tyv, sess_left, sess_right) = tycheck_cmd psig_ctxt ctxt
+  let%bind (tyv, sess_left, sess_right) = tycheck_cmd psig_ctxt (String.Map.empty, ctxt)
       (Option.map psigv.psigv_sess_left ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       (Option.map psigv.psigv_sess_right ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       proc.proc_body in
@@ -760,7 +840,7 @@ let rec verify_sess_ty sty_ctxt sty =
 let tycheck_prog prog =
   let%bind sty_ctxt = collect_sess_tys prog in
   let%bind psig_ctxt = collect_proc_sigs prog in
-  let ext_ctxt = collect_externals prog in
+  let%bind func_ctxt = collect_func_sigs prog in
   List.fold_result prog ~init:() ~f:(fun () top ->
       match top with
       | Top_sess (_, sty) ->
@@ -772,8 +852,8 @@ let tycheck_prog prog =
             | Sty_var _ -> Or_error.of_exn (Type_error ("non-contractive type", sty.sty_loc))
             | _ -> verify_sess_ty sty_ctxt sty
         end
-      | Top_proc (_, proc) -> tycheck_proc sty_ctxt psig_ctxt ext_ctxt proc
-      | Top_external _ -> Ok ()
+      | Top_proc (_, proc) -> tycheck_proc sty_ctxt psig_ctxt func_ctxt proc
+      | Top_func (_, func) -> tycheck_func func_ctxt func
     )
 
 let () =

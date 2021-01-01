@@ -1,4 +1,9 @@
+open Core
 open Ast_types
+
+let string_of_long_ident = function
+  | Lident_name name -> name
+  | Lident_path (lib_name, name) -> lib_name ^ "." ^ name
 
 let print_prim_ty fmt = function
   | Pty_unit -> Format.fprintf fmt "unit"
@@ -8,6 +13,11 @@ let print_prim_ty fmt = function
   | Pty_real -> Format.fprintf fmt "real"
   | Pty_fnat n -> Format.fprintf fmt "nat[%d]" n
   | Pty_nat -> Format.fprintf fmt "nat"
+  | Pty_int -> Format.fprintf fmt "int"
+
+let print_long_ident fmt = function
+  | Lident_name name -> Format.fprintf fmt "%s" name
+  | Lident_path (lib_name, name) -> Format.fprintf fmt "%s.%s" lib_name name
 
 let rec print_base_tyv fmt = function
   | Btyv_arrow (tyv1, tyv2) ->
@@ -15,8 +25,12 @@ let rec print_base_tyv fmt = function
   | tyv -> print_base_tyv_prod fmt tyv
 
 and print_base_tyv_prod fmt = function
-  | Btyv_product (tyv1, tyv2) ->
-    Format.fprintf fmt "%a * %a" print_base_tyv_prim tyv1 print_base_tyv_prod tyv2
+  | Btyv_product tyvs ->
+    begin
+      Format.fprintf fmt "%a" print_base_tyv_prim (List.hd_exn tyvs);
+      List.iter (List.tl_exn tyvs)
+        ~f:(fun tyv -> Format.fprintf fmt " * %a" print_base_tyv_prim tyv)
+    end
   | tyv -> print_base_tyv_prim fmt tyv
 
 and print_base_tyv_prim fmt = function
@@ -30,7 +44,7 @@ and print_base_tyv_prim fmt = function
   | Btyv_simplex n ->
     Format.fprintf fmt "simplex[%d]" n
   | Btyv_external name ->
-    Format.fprintf fmt "%s" name
+    Format.fprintf fmt "%a" print_long_ident name
   | tyv ->
     Format.fprintf fmt "(%a)" print_base_tyv tyv
 

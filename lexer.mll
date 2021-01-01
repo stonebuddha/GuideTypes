@@ -17,11 +17,12 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("dist", DIST);
   ("else", ELSE);
   ("end", END);
-  ("external", EXTERNAL);
   ("false", FALSE);
   ("fn", FN);
+  ("func", FUNC);
   ("if", IF);
   ("in", IN);
+  ("int", INT);
   ("iter", ITER);
   ("let", LET);
   ("loop", LOOP);

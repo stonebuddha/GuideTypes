@@ -48,16 +48,17 @@ let mkcmd ~loc cmd_desc = {
 %token END
 %token EOF
 %token EQUAL
-%token EXTERNAL
 %token FALSE
 %token <float> FLOATV
 %token FN
+%token FUNC
 %token GAMMA
 %token GEO
 %token GREATER
 %token GREATEREQUAL
 %token IF
 %token IN
+%token INT
 %token <int> INTV
 %token ITER
 %token LBRACE
@@ -123,6 +124,12 @@ let mkcmd ~loc cmd_desc = {
   | prog = list(toplevel); EOF
     { prog }
 
+long_ident:
+  | name = LIDENT
+    { Lident_name name }
+  | lib_name = UIDENT; DOT; name = LIDENT
+    { Lident_path (lib_name, name) }
+
 toplevel:
   | TYPE; sty_name = mkloc(UIDENT); EQUAL; sty_body = sess_ty
     { Top_sess (sty_name, Some sty_body) }
@@ -130,8 +137,8 @@ toplevel:
     { Top_sess (sty_name, None) }
   | PROC; proc_name = mkloc(UIDENT); proc_sig = proc_sig; EQUAL; proc_body = cmd
     { Top_proc (proc_name, { proc_sig; proc_body; proc_loc = make_loc $sloc }) }
-  | EXTERNAL; var_name = mkloc(LIDENT); COLON; ty = base_ty
-    { Top_external (var_name, ty) }
+  | FUNC; func_name = mkloc(LIDENT); LPAREN; func_param_tys = separated_list(SEMI, param_ty); RPAREN; MINUSGREATER; func_ret_ty = base_ty; EQUAL; func_body = exp
+    { Top_func (func_name, { func_param_tys; func_ret_ty; func_body; func_loc = make_loc $sloc }) }
 
 proc_sig:
   | psig_theta_tys = proc_theta; LPAREN; psig_param_tys = separated_list(SEMI, param_ty); RPAREN; MINUSGREATER; psig_ret_ty = base_ty; BAR; psig_sess_left = chtype; BAR; psig_sess_right = chtype
@@ -189,8 +196,8 @@ base_prod_ty:
   | bty = base_prim_ty
     { bty }
   | mkbty(
-      bty1 = base_prim_ty; ASTERISK; bty2 = base_prod_ty
-      { Bty_product (bty1, bty2) }
+      bty_hd = base_prim_ty; bty_tl = nonempty_list(preceded(ASTERISK, base_prim_ty))
+      { Bty_product (bty_hd :: bty_tl) }
     )
     { $1 }
 
@@ -206,7 +213,7 @@ base_prim_ty:
       { Bty_tensor (pty, dims) }
     | SIMPLEX; LBRACKET; n = INTV; RBRACKET
       { Bty_simplex n }
-    | type_name = mkloc(LIDENT)
+    | type_name = mkloc(long_ident)
       { Bty_external type_name }
     )
     { $1 }
@@ -226,6 +233,8 @@ prim_ty:
     { Pty_fnat n }
   | NAT
     { Pty_nat }
+  | INT
+    { Pty_int }
 
 exp:
   | exp = arith_exp
@@ -277,16 +286,27 @@ app_exp:
   | exp = prim_exp
     { exp }
   | mkexp(
-      rator = app_exp; LPAREN; rand = exp; RPAREN
+      rator = app_exp; rand = app_operand
       { E_app (rator, rand) }
     )
     { $1 }
+
+app_operand:
+  | mkexp(
+      LPAREN; RPAREN
+      { E_triv }
+    | LPAREN; rand_hd = exp; rand_tl = nonempty_list(preceded(SEMI, exp)); RPAREN
+      { E_tuple (rand_hd :: rand_tl) }
+    )
+    { $1 }
+  | LPAREN; rand = exp; RPAREN
+    { rand }
 
 prim_exp:
   | LPAREN; exp = exp; RPAREN
     { exp }
   | mkexp(
-      var_name = mkloc(LIDENT)
+      var_name = mkloc(long_ident)
       { E_var var_name }
     | LPAREN; RPAREN
       { E_triv }
@@ -312,8 +332,8 @@ prim_exp:
       { E_stack exps }
     | base_exp = prim_exp; LBRACKET; index_exps = separated_list(SEMI, exp); RBRACKET
       { E_index (base_exp, index_exps) }
-    | LPAREN; exp1 = exp; SEMI; exp2 = exp; RPAREN
-      { E_pair (exp1, exp2) }
+    | LPAREN; exp_hd = exp; exp_tl = nonempty_list(preceded(SEMI, exp)); RPAREN
+      { E_tuple (exp_hd :: exp_tl) }
     | exp = prim_exp; DOT; field = INTV
       { E_field (exp, field) }
     )
