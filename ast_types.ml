@@ -52,6 +52,10 @@ type base_tyv =
   | Btyv_product of base_tyv list
 [@@deriving equal]
 
+type fancy_tyv =
+  | Ftyv_base of base_tyv
+  | Ftyv_poly of (int list -> base_tyv option)
+
 type binop =
   | Bop_add
   | Bop_sub
@@ -84,6 +88,7 @@ type exp = {
 }
 
 and exp_desc =
+  | E_inst of variable_id * int list
   | E_var of variable_id
   | E_triv
   | E_bool of bool
@@ -96,10 +101,14 @@ and exp_desc =
   | E_let of exp * string loc * exp
   | E_dist of exp dist
   | E_tensor of exp
-  | E_stack of exp list
+  | E_stack of multilayer_exp list
   | E_index of exp * exp list
   | E_tuple of exp list
   | E_field of exp * int
+
+and multilayer_exp =
+  | ME_elem of exp
+  | ME_layer of multilayer_exp list
 
 type cmd = {
   cmd_desc: cmd_desc;

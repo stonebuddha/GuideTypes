@@ -268,7 +268,7 @@ let tycheck_bop bop arg1 arg2 =
 let lookup_ctx (libs, cur) lid =
   match lid with
   | Lident_name name ->
-    Map.find cur name
+    Option.map (Map.find cur name) ~f:(fun tyv -> Ftyv_base tyv)
   | Lident_path (lib_name, name) ->
     begin
       match Map.find libs lib_name with
@@ -279,13 +279,50 @@ let lookup_ctx (libs, cur) lid =
 let update_ctx (libs, cur) ~key ~data =
   (libs, Map.set cur ~key ~data)
 
+let rec dims_of_mexp ~loc chk mexp =
+  match mexp with
+  | ME_elem exp ->
+    let%bind tyv = chk exp in
+    begin
+      match tyv with
+      | Btyv_prim pty -> Ok ([], pty)
+      | _ -> Or_error.of_exn (Type_error ("non-primitive element type", loc))
+    end
+  | ME_layer subs ->
+    let%bind res =
+      List.fold_result subs ~init:None ~f:(fun acc sub ->
+          let%bind (sub_dims, sub_pty) = dims_of_mexp ~loc chk sub in
+          match acc with
+          | None -> Ok (Some (sub_dims, sub_pty))
+          | Some (dims, pty) ->
+            if equal_shape dims sub_dims then
+              let%bind join_pty = join_prim ~loc pty sub_pty in
+              Ok (Some (sub_dims, join_pty))
+            else
+              Or_error.of_exn (Type_error ("illegal tensor shape", loc))
+        )
+    in
+    let (dims, pty) = Option.value_exn res in
+    Ok (List.length subs :: dims, pty)
+
 let rec tycheck_exp ctxt exp =
   match exp.exp_desc with
+  | E_inst (var_name, dims) ->
+    begin
+      match lookup_ctx ctxt var_name.txt with
+      | Some (Ftyv_poly gen_tyv) ->
+        begin
+          match (gen_tyv dims) with
+          | Some tyv -> Ok tyv
+          | None -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident var_name.txt, exp.exp_loc))
+        end
+      | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident var_name.txt, exp.exp_loc))
+    end
   | E_var var_name ->
     begin
       match lookup_ctx ctxt var_name.txt with
-      | Some tyv -> Ok tyv
-      | None -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident var_name.txt, exp.exp_loc))
+      | Some (Ftyv_base tyv) -> Ok tyv
+      | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident var_name.txt, exp.exp_loc))
     end
   | E_triv -> Ok (Btyv_prim Pty_unit)
   | E_bool _ -> Ok (Btyv_prim Pty_bool)
@@ -344,23 +381,10 @@ let rec tycheck_exp ctxt exp =
       | Btyv_prim pty -> Ok (Btyv_tensor (pty, []))
       | _ -> Or_error.of_exn (Type_error ("non-primitive element type", exp0.exp_loc))
     end
-  | E_stack exps ->
-    let n = List.length exps in
-    let%bind ptys = List.fold_result exps ~init:[] ~f:(fun acc exp ->
-        let%bind tyv = tycheck_exp ctxt exp in
-        match tyv with
-        | Btyv_tensor (pty, dims) -> Ok ((pty, dims) :: acc)
-        | _ -> Or_error.of_exn (Type_error ("non-tensor type", exp.exp_loc))
-      ) in
-    let (pty, dims) = List.hd_exn ptys in
-    let%bind join_pty = List.fold_result ptys ~init:pty ~f:(fun acc (pty', dims') ->
-        if equal_shape dims dims' then
-          join_prim ~loc:exp.exp_loc acc pty'
-        else
-          Or_error.of_exn (Type_error ("not stackable", exp.exp_loc))
-      )
-    in
-    Ok (Btyv_tensor (join_pty, n :: dims))
+  | E_stack mexps ->
+    let mexp = ME_layer mexps in
+    let%bind (dims, pty) = dims_of_mexp ~loc:exp.exp_loc (tycheck_exp ctxt) mexp in
+    Ok (Btyv_tensor (pty, dims))
   | E_index (base_exp, index_exps) ->
     let%bind base_tyv = tycheck_exp ctxt base_exp in
     begin
@@ -765,14 +789,18 @@ let tycheck_cmd psig_ctxt =
         Option.map sess_right ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty))
        )
 
+let prelude_ctxt = String.Map.of_alist_exn [
+    "T", Tensor.prelude;
+  ]
+
 let tycheck_func func_ctxt func =
   let%bind ctxt = String.Map.of_alist_or_error
       (List.concat
          [ Map.to_alist func_ctxt
          ; (List.map func.func_param_tys ~f:(fun (var_name, ty) -> (var_name.txt, eval_ty ty)))]) in
-  let%bind ret_tyv = tycheck_exp (String.Map.empty, ctxt) func.func_body in
+  let%bind ret_tyv = tycheck_exp (prelude_ctxt, ctxt) func.func_body in
   let decl_tyv = eval_ty func.func_ret_ty in
-  if equal_base_tyv ret_tyv decl_tyv then
+  if is_subtype ret_tyv decl_tyv then
     Ok ()
   else
     Or_error.of_exn (Type_error ("incorrect function return type", func.func_loc))
@@ -784,7 +812,7 @@ let tycheck_proc sty_ctxt psig_ctxt func_ctxt proc =
          [ Map.to_alist func_ctxt
          ; (List.map psigv.psigv_theta_tys ~f:(fun (var_name, pty) -> (var_name, pty)))
          ; psigv.psigv_param_tys]) in
-  let%bind (tyv, sess_left, sess_right) = tycheck_cmd psig_ctxt (String.Map.empty, ctxt)
+  let%bind (tyv, sess_left, sess_right) = tycheck_cmd psig_ctxt (prelude_ctxt, ctxt)
       (Option.map psigv.psigv_sess_left ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       (Option.map psigv.psigv_sess_right ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       proc.proc_body in

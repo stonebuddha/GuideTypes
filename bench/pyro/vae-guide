@@ -1,10 +1,5 @@
 type Latent
 
-external mulmv400x784: (real; [400; 784]) tensor -> (real; [784]) tensor -> (real; [400]) tensor
-external softplus400: (real; [400]) tensor -> (real; [400]) tensor
-external mulmv50x400: (real; [50; 400]) tensor -> (real; [400]) tensor -> (real; [50]) tensor
-external exp50: (real; [50]) tensor -> (preal; [50]) tensor
-
 proc Guide
   [ g_fc1: (real; [400; 784]) tensor
   ; g_fc1_b: (real; [400]) tensor
@@ -14,9 +9,9 @@ proc Guide
   ; g_fc22_b: (real; [50]) tensor
   ](xs: (real; [256; 784]) tensor) -> unit | . | lat : Latent = {
   _ <- iter[xs; ()] (fn x (acc: unit) ->
-    hidden <- { return softplus400(mulmv400x784(g_fc1)(x) + g_fc1_b) };
-    z_loc <- { return mulmv50x400(g_fc21)(hidden) + g_fc21_b };
-    z_scale <- { return exp50(mulmv50x400(g_fc22)(hidden) + g_fc22_b) };
+    hidden <- { return T.softplus[400](T.mulmv[400; 784](g_fc1; x) + g_fc1_b) };
+    z_loc <- { return T.mulmv[50; 400](g_fc21; hidden) + g_fc21_b };
+    z_scale <- { return T.exp[50](T.mulmv[50; 400](g_fc22; hidden) + g_fc22_b) };
     _ <- sample{lat}(NORMAL(z_loc; z_scale));
     return ());
   return ()

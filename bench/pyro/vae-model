@@ -1,13 +1,6 @@
 type Latent
 type Observation
 
-external zeros50: (real; [50]) tensor
-external ones50: (preal; [50]) tensor
-external mulmv400x50: (real; [400; 50]) tensor -> (real; [50]) tensor -> (real; [400]) tensor
-external softplus400: (real; [400]) tensor -> (real; [400]) tensor
-external mulmv784x400: (real; [784; 400]) tensor -> (real; [400]) tensor -> (real; [784]) tensor
-external sigmoid784: (real; [784]) tensor -> (ureal; [784]) tensor
-
 proc Model
   [ m_fc1: (real; [400; 50]) tensor
   ; m_fc1_b: (real; [400]) tensor
@@ -15,11 +8,11 @@ proc Model
   ; m_fc21_b: (real; [784]) tensor
   ]() -> unit | lat : Latent | obs : Observation = {
   _ <- loop[256; ()] (fn (acc: unit) ->
-    z_loc <- { return zeros50 };
-    z_scale <- { return ones50 };
+    z_loc <- { return T.zeros[50]() };
+    z_scale <- { return T.ones[50]() };
     z <- observe{lat}(NORMAL(z_loc; z_scale));
-    hidden <- { return softplus400(mulmv400x50(m_fc1)(z) + m_fc1_b) };
-    loc_img <- { return sigmoid784(mulmv784x400(m_fc21)(hidden) + m_fc21_b) };
+    hidden <- { return T.softplus[400](T.mulmv[400; 50](m_fc1; z) + m_fc1_b) };
+    loc_img <- { return T.sigmoid[784](T.mulmv[784; 400](m_fc21; hidden) + m_fc21_b) };
     _ <- sample{obs}(BER(loc_img));
     return ());
   return ()

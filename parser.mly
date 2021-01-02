@@ -34,6 +34,7 @@ let mkcmd ~loc cmd_desc = {
 %token AND
 %token ASTERISK
 %token BAR
+%token BARRBRACKET
 %token BER
 %token BETA
 %token BIN
@@ -63,6 +64,7 @@ let mkcmd ~loc cmd_desc = {
 %token ITER
 %token LBRACE
 %token LBRACKET
+%token LBRACKETBAR
 %token LET
 %token LESS
 %token LESSGREATER
@@ -92,7 +94,6 @@ let mkcmd ~loc cmd_desc = {
 %token SIMPLEX
 %token SLASH
 %token SLASHBACKSLASH
-%token STACK
 %token TENSOR
 %token THEN
 %token TRUE
@@ -306,7 +307,9 @@ prim_exp:
   | LPAREN; exp = exp; RPAREN
     { exp }
   | mkexp(
-      var_name = mkloc(long_ident)
+      var_name = mkloc(long_ident); LBRACKET; dims = separated_list(SEMI, INTV); RBRACKET
+      { E_inst (var_name, dims) }
+    | var_name = mkloc(long_ident)
       { E_var var_name }
     | LPAREN; RPAREN
       { E_triv }
@@ -319,7 +322,7 @@ prim_exp:
     | r = FLOATV
       { E_real r }
     | MINUS; n = INTV
-      { E_real (Float.of_int (-n)) }
+      { E_nat (- n) }
     | MINUS; r = FLOATV
       { E_real (-. r) }
     | LET; var_name = mkloc(LIDENT); EQUAL; exp1 = exp; IN; exp2 = exp; END
@@ -328,9 +331,9 @@ prim_exp:
       { E_dist dist }
     | TENSOR; LPAREN; exp0 = exp; RPAREN
       { E_tensor exp0 }
-    | STACK; LPAREN; exps = separated_nonempty_list(SEMI, exp); RPAREN
-      { E_stack exps }
-    | base_exp = prim_exp; LBRACKET; index_exps = separated_list(SEMI, exp); RBRACKET
+    | TENSOR; LPAREN; LBRACKETBAR; mexps = separated_nonempty_list(SEMI, tensor); BARRBRACKET; RPAREN
+      { E_stack mexps }
+    | base_exp = prim_exp; DOT; LBRACKET; index_exps = separated_list(SEMI, exp); RBRACKET
       { E_index (base_exp, index_exps) }
     | LPAREN; exp_hd = exp; exp_tl = nonempty_list(preceded(SEMI, exp)); RPAREN
       { E_tuple (exp_hd :: exp_tl) }
@@ -338,6 +341,12 @@ prim_exp:
       { E_field (exp, field) }
     )
     { $1 }
+
+tensor:
+  | exp = exp
+    { ME_elem exp }
+  | LBRACKETBAR; exps = separated_nonempty_list(SEMI, tensor); BARRBRACKET
+    { ME_layer exps }
 
 dist(RHS):
   | BER; LPAREN; arg = RHS; RPAREN

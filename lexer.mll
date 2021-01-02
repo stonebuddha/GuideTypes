@@ -35,7 +35,6 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("real", REAL);
   ("sample", SAMPLE);
   ("simplex", SIMPLEX);
-  ("stack", STACK);
   ("tensor", TENSOR);
   ("then", THEN);
   ("true", TRUE);
@@ -46,6 +45,7 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("&", AMPERSAND);
   ("*", ASTERISK);
   ("|", BAR);
+  ("|]", BARRBRACKET);
   (":", COLON);
   ("$", DOLLAR);
   (".", DOT);
@@ -54,6 +54,7 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   (">=", GREATEREQUAL);
   ("{", LBRACE);
   ("[", LBRACKET);
+  ("[|", LBRACKETBAR);
   ("<", LESS);
   ("<>", LESSGREATER);
   ("<=", LESSEQUAL);
@@ -160,7 +161,7 @@ rule token = parse
     { error lexbuf (Invalid_literal invalid) }
   | "#"
     { comment lexbuf }
-  | ">=" | "<>" | "<=" | "<-" | "->" | "-o" | "/\\"
+  | ">=" | "<>" | "<=" | "<-" | "->" | "-o" | "/\\" | "[|" | "|]"
     { Hashtbl.find_exn keyword_table (lexeme lexbuf) }
   | ['&' '*' '|' ':' '$' '.' '=' '>' '{' '[' '<' '(' '-' '+' '}' ']' ')' ';' '/']
     { Hashtbl.find_exn keyword_table (lexeme lexbuf) }
