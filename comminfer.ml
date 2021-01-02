@@ -3,6 +3,8 @@ open Core
 let version = "0.1.0"
 let build_info = "CMU"
 
+module E = Eval
+
 let report_result result =
   Or_error.iter_error result ~f:(fun err ->
       let exn = Error.to_exn err in
