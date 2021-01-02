@@ -178,9 +178,9 @@ type func = {
   func_loc: Location.t;
 }
 
-type sess_or_proc =
+type top_bind =
   | Top_sess of string loc * sess_ty option
   | Top_proc of string loc * proc
   | Top_func of string loc * func
 
-type prog = sess_or_proc list
+type prog = top_bind list

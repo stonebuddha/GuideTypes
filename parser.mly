@@ -1,5 +1,8 @@
 %{
 open Ast_types
+open Infer_types
+
+module Or_error = Core.Or_error
 
 let mkloc = Location.mkloc
 
@@ -59,6 +62,7 @@ let mkcmd ~loc cmd_desc = {
 %token GREATEREQUAL
 %token IF
 %token IN
+%token INFER
 %token INT
 %token <int> INTV
 %token ITER
@@ -94,6 +98,7 @@ let mkcmd ~loc cmd_desc = {
 %token SIMPLEX
 %token SLASH
 %token SLASHBACKSLASH
+%token <string> STRV
 %token TENSOR
 %token THEN
 %token TRUE
@@ -111,7 +116,7 @@ let mkcmd ~loc cmd_desc = {
 %left ASTERISK SLASH
 
 %start implementation
-%type <Ast_types.prog> implementation
+%type <Ast_types.prog * Infer_types.script> implementation
 
 %%
 
@@ -122,8 +127,8 @@ let mkcmd ~loc cmd_desc = {
 %inline mkcmd(symb): symb { mkcmd ~loc:$sloc $1 }
 
 %public implementation:
-  | prog = list(toplevel); EOF
-    { prog }
+  | prog = list(toplevel); script = infer_script; EOF
+    { prog, script }
 
 long_ident:
   | name = LIDENT
@@ -398,3 +403,34 @@ cmd:
       { M_iter (iter_exp, init_exp, iter_name, bind_name, ty, cmd0) }
     )
     { $1 }
+
+infer_script:
+  | INFER;
+    LBRACE;
+    inf_algo = infer_algo; SEMI;
+    inf_model = infer_pcall; SEMI;
+    inf_guide = infer_pcall; SEMI;
+    inf_input = infer_file; SEMI;
+    inf_output = infer_file; SEMI;
+    RBRACE
+    { { inf_algo; inf_model; inf_guide; inf_input; inf_output } }
+
+infer_algo:
+  | algo_name = mkloc(LIDENT); LBRACE; hyper_params = list(terminated(separated_pair(LIDENT, COLON, hyper_param), SEMI)); RBRACE
+    { Or_error.ok_exn (Infer_ops.construct_algo algo_name hyper_params) }
+
+infer_pcall:
+  | proc_name = mkloc(UIDENT); LPAREN; exps = separated_list(SEMI, exp); RPAREN
+    { (proc_name, exps) }
+
+infer_file:
+  | channel_name = mkloc(LIDENT); LESSMINUS; file_name = mkloc(STRV)
+    { (channel_name, file_name) }
+
+hyper_param:
+  | n = mkloc(INTV)
+    { Hp_int n }
+  | f = mkloc(FLOATV)
+    { Hp_float f }
+  | s = mkloc(STRV)
+    { Hp_string s }

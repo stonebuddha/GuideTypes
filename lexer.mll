@@ -6,6 +6,7 @@ open Parser
 type error =
   | Illegal_character of char
   | Invalid_literal of string
+  | Unterminated_string
 
 exception Lexer_error of error * Location.t
 
@@ -22,6 +23,7 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("func", FUNC);
   ("if", IF);
   ("in", IN);
+  ("infer", INFER);
   ("int", INT);
   ("iter", ITER);
   ("let", LET);
@@ -98,6 +100,16 @@ let update_loc lexbuf file line absolute chars =
     pos_bol = pos.pos_cnum - chars;
   }
 
+(* String buffer *)
+
+let string_buffer = Buffer.create 32
+
+let reset_string () = Buffer.reset string_buffer
+
+let add_string char = Buffer.add_char string_buffer char
+
+let get_string () = Buffer.To_string.subo string_buffer
+
 (* Error report *)
 
 let error lexbuf e = raise (Lexer_error (e, Location.curr lexbuf))
@@ -107,6 +119,8 @@ let prepare_error loc = function
     Location.errorf ~loc "illegal character (%s)" (Char.escaped c)
   | Invalid_literal s ->
     Location.errorf ~loc "invalid literal %s" s
+  | Unterminated_string ->
+    Location.errorf ~loc "string literal not terminated"
 
 let () =
   Location.register_error_of_exn
@@ -165,6 +179,8 @@ rule token = parse
     { Hashtbl.find_exn keyword_table (lexeme lexbuf) }
   | ['&' '*' '|' ':' '$' '.' '=' '>' '{' '[' '<' '(' '-' '+' '}' ']' ')' ';' '/']
     { Hashtbl.find_exn keyword_table (lexeme lexbuf) }
+  | '"'
+    { reset_string (); string lexbuf }
   | eof
     { EOF }
   | _ as illegal_char
@@ -175,3 +191,33 @@ and comment = parse
     { update_loc lexbuf None 1 false 0; token lexbuf }
   | _
     { comment lexbuf }
+
+and string = parse
+  | '"'
+    { STRV (get_string ()) }
+  | '\\'
+    { add_string (escaped lexbuf); string lexbuf }
+  | '\n'
+    { add_string '\n'; update_loc lexbuf None 1 false 0; string lexbuf }
+  | eof
+    { error lexbuf Unterminated_string }
+  | _ as char
+    { add_string char; string lexbuf }
+
+and escaped = parse
+  | 'n'
+    { '\n' }
+  | 't'
+    { '\t' }
+  | '\\'
+    { '\\' }
+  | '"'
+    { '\034' }
+  | '\''
+    { '\'' }
+  | ['0'-'9']['0'-'9']['0'-'9'] as lit
+    { let x = Int.of_string lit in
+      if x > 255 then error lexbuf (Invalid_literal lit)
+      else Char.of_int_exn x }
+  | _ as illegal_char
+    { error lexbuf (Illegal_character illegal_char) }

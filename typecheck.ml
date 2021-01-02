@@ -1,5 +1,6 @@
 open Core
 open Ast_types
+open Infer_types
 open Or_error.Let_syntax
 
 exception Type_error of string * Location.t
@@ -865,11 +866,72 @@ let rec verify_sess_ty sty_ctxt sty =
     | None -> Or_error.of_exn (Type_error ("unknown type " ^ type_name.txt, type_name.loc))
     | Some _ -> Option.value_map sty0 ~default:(Ok ()) ~f:(verify_sess_ty sty_ctxt)
 
-let tycheck_prog prog =
+let tycheck_script psig_ctxt func_ctxt script =
+  let (model, model_args) = script.inf_model in
+  let (guide, guide_args) = script.inf_guide in
+  let (input_ch, _) = script.inf_input in
+  let (output_ch, _) = script.inf_output in
+
+  let check_mcall ~loc mpsigv margs =
+    if List.length mpsigv.psigv_param_tys <> List.length margs then
+      Or_error.of_exn (Type_error ("mismatched arity", loc))
+    else
+      List.fold_result (List.zip_exn mpsigv.psigv_param_tys margs)
+        ~init:()
+        ~f:(fun () ((_, tyv), exp) ->
+            let%bind chk_tyv = tycheck_exp (prelude_ctxt, func_ctxt) exp in
+            if is_subtype chk_tyv tyv then
+              Ok ()
+            else
+              Or_error.of_exn (Type_error ("mismatched argument types", exp.exp_loc))
+          )
+  in
+  let%bind psigv_model = Map.find_or_error psig_ctxt model.txt in
+  let%bind () = check_mcall ~loc:model.loc psigv_model model_args in
+  let%bind psigv_guide = Map.find_or_error psig_ctxt guide.txt in
+  let%bind () = check_mcall ~loc:guide.loc psigv_guide guide_args in
+
+  let%bind lat_ch, lat_sty =
+    if Option.is_some psigv_guide.psigv_sess_left then
+      Or_error.of_exn (Type_error ("guide should not consume any channel", guide.loc))
+    else
+      match psigv_guide.psigv_sess_right with
+      | None -> Or_error.of_exn (Type_error ("guide should provide a channel", guide.loc))
+      | Some channel_spec -> Ok channel_spec
+  in
+
+  let%bind obs_ch, _ =
+    match psigv_model.psigv_sess_left with
+    | None -> Or_error.of_exn (Type_error ("model should consume a channel", model.loc))
+    | Some (channel_name, channel_sty) ->
+      if String.(lat_ch <> channel_name || lat_sty <> channel_sty) then
+        Or_error.of_exn (Type_error ("mismatched model-guide pair", model.loc))
+      else
+        match psigv_model.psigv_sess_right with
+        | None -> Or_error.of_exn (Type_error ("model should provide a channel", model.loc))
+        | Some channel_spec -> Ok channel_spec
+  in
+
+  let%bind () =
+    if String.(obs_ch <> input_ch.txt) then
+      Or_error.of_exn (Type_error ("mismatched input channel", input_ch.loc))
+    else
+      Ok ()
+  in
+  let%bind () =
+    if String.(lat_ch <> output_ch.txt) then
+      Or_error.of_exn (Type_error ("mismatched output channel", output_ch.loc))
+    else
+      Ok ()
+  in
+
+  Ok ()
+
+let tycheck_prog (prog, script) =
   let%bind sty_ctxt = collect_sess_tys prog in
   let%bind psig_ctxt = collect_proc_sigs prog in
   let%bind func_ctxt = collect_func_sigs prog in
-  List.fold_result prog ~init:() ~f:(fun () top ->
+  let%bind () = List.fold_result prog ~init:() ~f:(fun () top ->
       match top with
       | Top_sess (_, sty) ->
         begin
@@ -883,6 +945,8 @@ let tycheck_prog prog =
       | Top_proc (_, proc) -> tycheck_proc sty_ctxt psig_ctxt func_ctxt proc
       | Top_func (_, func) -> tycheck_func func_ctxt func
     )
+  in
+  tycheck_script psig_ctxt func_ctxt script
 
 let () =
   Location.register_error_of_exn
