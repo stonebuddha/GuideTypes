@@ -22,6 +22,10 @@ let lookup_env (libs, cur) lid =
 let update_env (libs, cur) ~key ~data =
   (libs, Map.set cur ~key ~data)
 
+let stdlib_env = String.Map.of_alist_exn [
+    "T", Libtensor.stdlib;
+  ]
+
 let eval_bop bop value1 value2 =
   match bop.txt, value1, value2 with
   | Bop_add, Val_nat n1, Val_nat n2 -> Ok (Val_nat (n1 + n2))

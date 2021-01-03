@@ -1,5 +1,4 @@
 open Core
-open Torch
 open Ast_types
 
 type value =

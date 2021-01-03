@@ -1,5 +1,3 @@
-open Core
-
 include module type of Torch.Tensor
 
 val mk_f : float -> t
@@ -19,5 +17,3 @@ val ( <= ) : t -> t -> t
 val ( > ) : t -> t -> t
 
 val ( >= ) : t -> t -> t
-
-val prelude : Ast_types.fancy_tyv String.Map.t

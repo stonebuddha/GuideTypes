@@ -814,7 +814,7 @@ let tycheck_cmd psig_ctxt =
        )
 
 let prelude_ctxt = String.Map.of_alist_exn [
-    "T", Tensor.prelude;
+    "T", Libtensor.prelude;
   ]
 
 let tycheck_func func_ctxt func =
