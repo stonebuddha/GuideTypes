@@ -43,6 +43,20 @@ let ft_sigmoid = ft_gen1 Pty_real Pty_ureal
 
 let ft_exp = ft_gen1 Pty_real Pty_preal
 
+let ft_eye = Ftyv_poly
+    (fun dims ->
+       match dims with
+       | [n] -> Some (Btyv_arrow (Btyv_unit, Btyv_tensor (Pty_ureal, [n; n])))
+       | _ -> None
+    )
+
+let ft_inv = Ftyv_poly
+    (fun dims ->
+       match dims with
+       | [n] -> Some (Btyv_arrow (Btyv_tensor (Pty_real, [n; n]), Btyv_tensor (Pty_real, [n; n])))
+       | _ -> None
+    )
+
 let prelude = String.Map.of_alist_exn [
     "zeros", ft_zeros;
     "ones", ft_ones;
@@ -52,6 +66,8 @@ let prelude = String.Map.of_alist_exn [
     "softplus", ft_softplus;
     "sigmoid", ft_sigmoid;
     "exp", ft_exp;
+    "eye", ft_eye;
+    "inv", ft_inv;
   ]
 
 (* Library functions *)
@@ -90,6 +106,26 @@ let pf_sigmoid = pf_gen1 Tensor.sigmoid "sigmoid"
 
 let pf_exp = pf_gen1 Tensor.exp "exp"
 
+let pf_eye = Fval_poly
+    (fun dims ->
+       match dims with
+       | [n] -> Some (Val_prim_func (function
+           | Val_triv -> Ok (Val_tensor (Tensor.eye n))
+           | _ -> bad_impl "pf_eye"
+         ))
+       | _ -> None
+    )
+
+let pf_inv = Fval_poly
+    (fun dims ->
+       match dims with
+       | [_] -> Some (Val_prim_func (function
+           | Val_tensor t -> Ok (Val_tensor (Tensor.inverse t))
+           | _ -> bad_impl "pf_inv"
+         ))
+       | _ -> None
+    )
+
 let stdlib = String.Map.of_alist_exn [
     "zeros", pf_zeros;
     "ones", pf_ones;
@@ -99,4 +135,6 @@ let stdlib = String.Map.of_alist_exn [
     "softplus", pf_softplus;
     "sigmoid", pf_sigmoid;
     "exp", pf_exp;
+    "eye", pf_eye;
+    "inv", pf_inv;
   ]

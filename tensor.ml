@@ -43,3 +43,5 @@ let ( <= ) = Torch_core.Wrapper.Tensor.le1
 let ( > ) = Torch_core.Wrapper.Tensor.gt1
 
 let ( >= ) = Torch_core.Wrapper.Tensor.ge1
+
+let eye n = eye ~n ~options:(Torch_core.Kind.(T Float), Device.Cpu)

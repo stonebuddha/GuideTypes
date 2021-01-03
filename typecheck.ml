@@ -419,10 +419,6 @@ let rec tycheck_exp ctxt exp =
     let ctxt' = update_ctx ctxt ~key:name.txt ~data:tyv1 in
     tycheck_exp ctxt' exp2
 
-  | E_dist dist ->
-    let%bind tyv = tycheck_dist ~loc:exp.exp_loc ctxt dist in
-    Ok (Btyv_dist tyv)
-
   | E_tensor exp0 ->
     let%bind tyv0 = tycheck_exp ctxt exp0 in
     begin
@@ -500,96 +496,6 @@ let rec tycheck_exp ctxt exp =
       | _ ->
         Or_error.of_exn (Type_error ("non-projectable value", exp0.exp_loc))
     end
-
-and tycheck_dist ~loc ctxt dist =
-  let lift tars goal curs =
-    let tcs = List.zip_exn tars curs in
-    let%bind res =
-      List.fold_result tcs ~init:None ~f:(fun acc (tar, cur) ->
-          match cur with
-          | Btyv_prim pty when is_prim_subtype pty tar ->
-            begin
-              match acc with
-              | None -> Ok (Some None)
-              | Some None -> Ok (Some None)
-              | _ -> Or_error.of_exn (Type_error ("mixed tensors and scalars", loc))
-            end
-          | Btyv_tensor (pty, dims) when is_prim_subtype pty tar ->
-            begin
-              match acc with
-              | None -> Ok (Some (Some dims))
-              | Some None -> Or_error.of_exn (Type_error ("mixed tensors and scalars", loc))
-              | Some (Some dims') ->
-                if equal_shape dims dims' then
-                  Ok (Some (Some dims))
-                else
-                  Or_error.of_exn (Type_error ("inconsistent tensor dims", loc))
-            end
-          | _ -> Or_error.of_exn (Type_error ("mismatched parameter types", loc))
-        )
-    in
-    let res = Option.value_exn res in
-    match res with
-    | None -> Ok (Btyv_prim goal)
-    | Some dims -> Ok (Btyv_tensor (goal, dims))
-  in
-
-  match dist with
-  | D_ber exp ->
-    let%bind tyv = tycheck_exp ctxt exp in
-    lift [Pty_ureal] Pty_bool [tyv]
-
-  | D_unif ->
-    Ok (Btyv_prim Pty_ureal)
-
-  | D_beta (exp1, exp2) ->
-    let%bind tyv1 = tycheck_exp ctxt exp1 in
-    let%bind tyv2 = tycheck_exp ctxt exp2 in
-    lift [Pty_preal; Pty_preal] Pty_ureal [tyv1; tyv2]
-
-  | D_gamma (exp1, exp2) ->
-    let%bind tyv1 = tycheck_exp ctxt exp1 in
-    let%bind tyv2 = tycheck_exp ctxt exp2 in
-    lift [Pty_preal; Pty_preal] Pty_preal [tyv1; tyv2]
-
-  | D_normal (exp1, exp2) ->
-    let%bind tyv1 = tycheck_exp ctxt exp1 in
-    let%bind tyv2 = tycheck_exp ctxt exp2 in
-    lift [Pty_real; Pty_preal] Pty_real [tyv1; tyv2]
-
-  | D_cat exps ->
-    let n = List.length exps in
-    let%bind () = List.fold_result exps ~init:() ~f:(fun () exp ->
-        let%bind tyv = tycheck_exp ctxt exp in
-        if is_subtype tyv (Btyv_prim Pty_preal) then
-          Ok ()
-        else
-          Or_error.of_exn (Type_error ("mismatched parameter types", loc))
-      )
-    in
-    Ok (Btyv_prim (Pty_fnat n))
-
-  | D_discrete exp ->
-    let%bind tyv = tycheck_exp ctxt exp in
-    begin
-      match tyv with
-      | Btyv_simplex n ->
-        Ok (Btyv_prim (Pty_fnat n))
-      | _ ->
-        Or_error.of_exn (Type_error ("mismatched parameter types", loc))
-    end
-
-  | D_bin (n, exp) ->
-    let%bind tyv = tycheck_exp ctxt exp in
-    lift [Pty_ureal] (Pty_fnat n) [tyv]
-
-  | D_geo exp ->
-    let%bind tyv = tycheck_exp ctxt exp in
-    lift [Pty_ureal] Pty_nat [tyv]
-
-  | D_pois exp ->
-    let%bind tyv = tycheck_exp ctxt exp in
-    lift [Pty_preal] Pty_nat [tyv]
 
 let rec eval_sty sty =
   match sty.sty_desc with
@@ -878,6 +784,7 @@ let tycheck_cmd psig_ctxt =
 
 let prelude_ctxt = String.Map.of_alist_exn [
     "T", Libtensor.prelude;
+    "D", Libdist.prelude;
   ]
 
 let tycheck_func func_ctxt func =

@@ -148,10 +148,6 @@ let rec interp_exp env exp =
     let%bind value1 = interp_exp env exp1 in
     interp_exp (update_env env ~key:name.txt ~data:value1) exp2
 
-  | E_dist dist ->
-    let%bind vdist = interp_dist env dist in
-    Ok (Val_dist vdist)
-
   | E_tensor exp0 ->
     let%bind value0 = interp_exp env exp0 in
     begin
@@ -281,53 +277,3 @@ let rec interp_exp env exp =
       | Val_tuple values -> Ok (List.nth_exn values field)
       | _ -> bad_impl "interp_exp E_field"
     end
-
-and interp_dist env dist =
-  match dist with
-  | D_ber exp ->
-    let%bind value = interp_exp env exp in
-    Ok (D_ber value)
-
-  | D_unif ->
-    Ok D_unif
-
-  | D_beta (exp1, exp2) ->
-    let%bind value1 = interp_exp env exp1 in
-    let%bind value2 = interp_exp env exp2 in
-    Ok (D_beta (value1, value2))
-
-  | D_gamma (exp1, exp2) ->
-    let%bind value1 = interp_exp env exp1 in
-    let%bind value2 = interp_exp env exp2 in
-    Ok (D_gamma (value1, value2))
-
-  | D_normal (exp1, exp2) ->
-    let%bind value1 = interp_exp env exp1 in
-    let%bind value2 = interp_exp env exp2 in
-    Ok (D_normal (value1, value2))
-
-  | D_cat exps ->
-    let%bind values = Utils.fold_right_result exps
-        ~init:[]
-        ~f:(fun exp acc ->
-            let%bind value = interp_exp env exp in
-            Ok (value :: acc)
-          )
-    in
-    Ok (D_cat values)
-
-  | D_discrete exp ->
-    let%bind value = interp_exp env exp in
-    Ok (D_discrete value)
-
-  | D_bin (n, exp) ->
-    let%bind value = interp_exp env exp in
-    Ok (D_bin (n, value))
-
-  | D_geo exp ->
-    let%bind value = interp_exp env exp in
-    Ok (D_geo value)
-
-  | D_pois exp ->
-    let%bind value = interp_exp env exp in
-    Ok (D_pois value)

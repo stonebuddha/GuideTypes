@@ -2,22 +2,22 @@ type Latent
 type Observation
 
 proc Model() -> preal | lat : Latent | obs : Observation = {
-  v <- observe{lat}(GAMMA(2; 1));
+  v <- observe{lat}(D.gamma(2; 1));
   if{lat} v < 2.0 then
-    _ <- sample{obs}(NORMAL(-1; 1));
+    _ <- sample{obs}(D.normal(-1; 1));
     return v
   else
-    m <- observe{lat}(BETA(3; 1));
-    _ <- sample{obs}(NORMAL(m; 1));
+    m <- observe{lat}(D.beta(3; 1));
+    _ <- sample{obs}(D.normal(m; 1));
     return v
 }
 
 proc Proposal() -> unit | . | lat : Latent = {
-  v <- sample{lat}(GAMMA(1; 1));
+  v <- sample{lat}(D.gamma(1; 1));
   if{lat} . then
     return ()
   else
-    _ <- sample{lat}(UNIF);
+    _ <- sample{lat}(D.unif());
     return ()
 }
 

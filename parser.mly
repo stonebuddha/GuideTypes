@@ -38,13 +38,8 @@ let mkcmd ~loc cmd_desc = {
 %token ASTERISK
 %token BAR
 %token BARRBRACKET
-%token BER
-%token BETA
-%token BIN
 %token BOOL
-%token CAT
 %token COLON
-%token DISC
 %token DIST
 %token DOLLAR
 %token DOT
@@ -56,8 +51,6 @@ let mkcmd ~loc cmd_desc = {
 %token <float> FLOATV
 %token FN
 %token FUNC
-%token GAMMA
-%token GEO
 %token GREATER
 %token GREATEREQUAL
 %token IF
@@ -81,11 +74,9 @@ let mkcmd ~loc cmd_desc = {
 %token MINUSGREATER
 %token MINUSO
 %token NAT
-%token NORMAL
 %token OBSERVE
 %token OR
 %token PLUS
-%token POIS
 %token PREAL
 %token PROC
 %token RBRACE
@@ -105,7 +96,6 @@ let mkcmd ~loc cmd_desc = {
 %token TYPE
 %token <string> UIDENT
 %token UNDERSCORE
-%token UNIF
 %token UNIT
 %token UREAL
 
@@ -332,8 +322,6 @@ prim_exp:
       { E_real (-. r) }
     | LET; var_name = mkloc(LIDENT); EQUAL; exp1 = exp; IN; exp2 = exp; END
       { E_let (exp1, var_name, exp2) }
-    | dist = dist(exp)
-      { E_dist dist }
     | TENSOR; LPAREN; exp0 = exp; RPAREN
       { E_tensor exp0 }
     | TENSOR; LPAREN; LBRACKETBAR; mexps = separated_nonempty_list(SEMI, tensor); BARRBRACKET; RPAREN
@@ -352,28 +340,6 @@ tensor:
     { Multi_leaf exp }
   | LBRACKETBAR; exps = separated_nonempty_list(SEMI, tensor); BARRBRACKET
     { Multi_internal exps }
-
-dist(RHS):
-  | BER; LPAREN; arg = RHS; RPAREN
-    { D_ber arg }
-  | UNIF
-    { D_unif }
-  | BETA; LPAREN; arg1 = RHS; SEMI; arg2 = RHS; RPAREN
-    { D_beta (arg1, arg2) }
-  | GAMMA; LPAREN; arg1 = RHS; SEMI; arg2 = RHS; RPAREN
-    { D_gamma (arg1, arg2) }
-  | NORMAL; LPAREN; arg1 = RHS; SEMI; arg2 = RHS; RPAREN
-    { D_normal (arg1, arg2) }
-  | CAT; LPAREN; args = separated_nonempty_list(SEMI, RHS); RPAREN
-    { D_cat args }
-  | DISC; LPAREN; arg = RHS; RPAREN
-    { D_discrete arg }
-  | BIN; LPAREN; n = INTV; SEMI; arg = RHS; RPAREN
-    { D_bin (n, arg) }
-  | GEO; LPAREN; arg = RHS; RPAREN
-    { D_geo arg }
-  | POIS; LPAREN; arg = RHS; RPAREN
-    { D_pois arg }
 
 cmd:
   | LBRACE; cmd = cmd; RBRACE

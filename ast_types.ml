@@ -71,18 +71,6 @@ type binop =
   | Bop_and
   | Bop_or
 
-type 'a dist =
-  | D_ber of 'a
-  | D_unif
-  | D_beta of 'a * 'a
-  | D_gamma of 'a * 'a
-  | D_normal of 'a * 'a
-  | D_cat of 'a list
-  | D_discrete of 'a
-  | D_bin of int * 'a
-  | D_geo of 'a
-  | D_pois of 'a
-
 type exp = {
   exp_desc: exp_desc;
   exp_loc: Location.t;
@@ -100,7 +88,6 @@ and exp_desc =
   | E_abs of string loc * base_ty * exp
   | E_app of exp * exp
   | E_let of exp * string loc * exp
-  | E_dist of exp dist
   | E_tensor of exp
   | E_stack of exp multilayer list
   | E_index of exp * exp list
