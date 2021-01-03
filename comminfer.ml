@@ -16,7 +16,7 @@ let report_result result =
     )
 
 let parse_file filename =
-  Timer.wrap_duration "parsing" (fun () ->
+  Utils.wrap_duration "parsing" (fun () ->
       match Sys.file_exists filename with
       | `No | `Unknown ->
         Error (Error.of_string "file not found")
@@ -32,7 +32,7 @@ let parse_file filename =
     )
 
 let typecheck prog =
-  Timer.wrap_duration "typechecking" (fun () ->
+  Utils.wrap_duration "typechecking" (fun () ->
       Typecheck.tycheck_prog prog
     )
 

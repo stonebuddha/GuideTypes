@@ -59,7 +59,7 @@ let bad_impl func =
 
 let pf_gen0 pf name = Fval_poly
     (fun dims ->
-       Some (Val_prim (function
+       Some (Val_prim_func (function
            | Val_triv -> Ok (Val_tensor (pf dims))
            | _ -> bad_impl ("pf_" ^ name)
          ))
@@ -67,7 +67,7 @@ let pf_gen0 pf name = Fval_poly
 
 let pf_gen1 pf name = Fval_poly
     (fun _ ->
-       Some (Val_prim (function
+       Some (Val_prim_func (function
            | Val_tensor t -> Ok (Val_tensor (pf t))
            | _ -> bad_impl ("pf_" ^ name)
          ))
@@ -79,7 +79,7 @@ let pf_ones = pf_gen0 Tensor.ones "ones"
 
 let pf_mulmm = Fval_poly
     (fun _ ->
-       Some (Val_prim (function
+       Some (Val_prim_func (function
            | Val_tuple [Val_tensor t1; Val_tensor t2] -> Ok (Val_tensor (Tensor.mm t1 t2))
            | _ -> bad_impl "pf_mulmm"
          ))

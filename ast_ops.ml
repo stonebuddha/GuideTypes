@@ -44,7 +44,7 @@ and print_base_tyv_prim fmt = function
       (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "; ") (fun fmt n -> Format.fprintf fmt "%d" n)) dims
   | Btyv_simplex n ->
     Format.fprintf fmt "simplex[%d]" n
-  | Btyv_external name ->
+  | Btyv_var name ->
     Format.fprintf fmt "%a" print_long_ident name
   | tyv ->
     Format.fprintf fmt "(%a)" print_base_tyv tyv

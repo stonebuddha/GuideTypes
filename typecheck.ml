@@ -49,7 +49,7 @@ let rec is_subtype tyv1 tyv2 =
   | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 -> true
   | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when equal_shape [n1] dims2 -> is_prim_subtype Pty_ureal pty2
   | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] -> is_prim_subtype pty1 Pty_ureal
-  | Btyv_external name1, Btyv_external name2 -> equal_long_ident name1 name2
+  | Btyv_var name1, Btyv_var name2 -> equal_long_ident name1 name2
   | Btyv_product tyvs1, Btyv_product tyvs2 ->
     List.length tyvs1 = List.length tyvs2
     && List.for_all2_exn tyvs1 tyvs2 ~f:is_subtype
@@ -98,8 +98,8 @@ let rec join_type ~loc tyv1 tyv2 =
   | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] ->
     let%bind pty = join_prim ~loc pty1 Pty_ureal in
     Ok (Btyv_tensor (pty, dims1))
-  | Btyv_external name1, Btyv_external name2 when equal_long_ident name1 name2 ->
-    Ok (Btyv_external name1)
+  | Btyv_var name1, Btyv_var name2 when equal_long_ident name1 name2 ->
+    Ok (Btyv_var name1)
   | Btyv_product tyvs1, Btyv_product tyvs2 ->
     if List.length tyvs1 <> List.length tyvs2 then
       Or_error.of_exn (Type_error ("mismatched tuple sizes", loc))
@@ -142,8 +142,8 @@ and meet_type ~loc tyv1 tyv2 =
   | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] ->
     let%bind pty = meet_prim ~loc pty1 Pty_ureal in
     Ok (Btyv_tensor (pty, dims1))
-  | Btyv_external name1, Btyv_external name2 when equal_long_ident name1 name2 ->
-    Ok (Btyv_external name1)
+  | Btyv_var name1, Btyv_var name2 when equal_long_ident name1 name2 ->
+    Ok (Btyv_var name1)
   | Btyv_product tyvs1, Btyv_product tyvs2 ->
     if List.length tyvs1 <> List.length tyvs2 then
       Or_error.of_exn (Type_error ("mismatched tuple sizes", loc))
@@ -167,7 +167,7 @@ let rec eval_ty ty =
   | Bty_dist ty0 -> Btyv_dist (eval_ty ty0)
   | Bty_tensor (pty, dims) -> Btyv_tensor (pty, dims)
   | Bty_simplex n -> Btyv_simplex n
-  | Bty_external type_name -> Btyv_external type_name.txt
+  | Bty_var type_name -> Btyv_var type_name.txt
   | Bty_product tys -> Btyv_product (List.map tys ~f:eval_ty)
 
 let tycheck_bop_prim bop pty1 pty2 =
@@ -287,14 +287,14 @@ let update_ctx (libs, cur) ~key ~data =
 
 let rec dims_of_mexp ~loc chk mexp =
   match mexp with
-  | ME_elem exp ->
+  | Multi_leaf exp ->
     let%bind tyv = chk exp in
     begin
       match tyv with
       | Btyv_prim pty -> Ok ([], pty)
       | _ -> Or_error.of_exn (Type_error ("non-primitive element type", loc))
     end
-  | ME_layer subs ->
+  | Multi_internal subs ->
     let%bind res =
       List.fold_result subs ~init:None ~f:(fun acc sub ->
           let%bind (sub_dims, sub_pty) = dims_of_mexp ~loc chk sub in
@@ -347,7 +347,7 @@ let rec tycheck_exp ctxt exp =
       Ok (Btyv_prim Pty_preal)
     else
       Ok (Btyv_prim Pty_real)
-  | E_nat n ->
+  | E_int n ->
     if n >= 0 then
       Ok (Btyv_prim (Pty_fnat (n + 1)))
     else
@@ -388,7 +388,7 @@ let rec tycheck_exp ctxt exp =
       | _ -> Or_error.of_exn (Type_error ("non-primitive element type", exp0.exp_loc))
     end
   | E_stack mexps ->
-    let mexp = ME_layer mexps in
+    let mexp = Multi_internal mexps in
     let%bind (dims, pty) = dims_of_mexp ~loc:exp.exp_loc (tycheck_exp ctxt) mexp in
     if not (is_prim_numeric pty) then
       Or_error.of_exn (Type_error ("non-numeric element type", exp.exp_loc))
@@ -397,8 +397,8 @@ let rec tycheck_exp ctxt exp =
             ~init:0.0
             ~f:(fun acc mexp ->
                 match mexp with
-                | ME_elem { exp_desc = E_real r; _ } when Float.(r >= 0.) -> Ok Float.(acc + r)
-                | ME_elem { exp_desc = E_nat n; _ } when n >= 0 -> Ok Float.(acc + of_int n)
+                | Multi_leaf { exp_desc = E_real r; _ } when Float.(r >= 0.) -> Ok Float.(acc + r)
+                | Multi_leaf { exp_desc = E_int n; _ } when n >= 0 -> Ok Float.(acc + of_int n)
                 | _ -> Or_error.error_string ""
               )
         in

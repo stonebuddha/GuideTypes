@@ -28,67 +28,67 @@ let stdlib_env = String.Map.of_alist_exn [
 
 let eval_bop bop value1 value2 =
   match bop.txt, value1, value2 with
-  | Bop_add, Val_nat n1, Val_nat n2 -> Ok (Val_nat (n1 + n2))
-  | Bop_add, Val_nat n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 + f2))
-  | Bop_add, Val_real f1, Val_nat n2 -> Ok (Val_real Float.(f1 + of_int n2))
+  | Bop_add, Val_int n1, Val_int n2 -> Ok (Val_int (n1 + n2))
+  | Bop_add, Val_int n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 + f2))
+  | Bop_add, Val_real f1, Val_int n2 -> Ok (Val_real Float.(f1 + of_int n2))
   | Bop_add, Val_real f1, Val_real f2 -> Ok (Val_real Float.(f1 + f2))
   | Bop_add, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 + t2))
 
-  | Bop_sub, Val_nat n1, Val_nat n2 -> Ok (Val_nat (n1 - n2))
-  | Bop_sub, Val_nat n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 - f2))
-  | Bop_sub, Val_real f1, Val_nat n2 -> Ok (Val_real Float.(f1 - of_int n2))
+  | Bop_sub, Val_int n1, Val_int n2 -> Ok (Val_int (n1 - n2))
+  | Bop_sub, Val_int n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 - f2))
+  | Bop_sub, Val_real f1, Val_int n2 -> Ok (Val_real Float.(f1 - of_int n2))
   | Bop_sub, Val_real f1, Val_real f2 -> Ok (Val_real Float.(f1 - f2))
   | Bop_sub, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 - t2))
 
-  | Bop_mul, Val_nat n1, Val_nat n2 -> Ok (Val_nat (n1 * n2))
-  | Bop_mul, Val_nat n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 * f2))
-  | Bop_mul, Val_real f1, Val_nat n2 -> Ok (Val_real Float.(f1 * of_int n2))
+  | Bop_mul, Val_int n1, Val_int n2 -> Ok (Val_int (n1 * n2))
+  | Bop_mul, Val_int n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 * f2))
+  | Bop_mul, Val_real f1, Val_int n2 -> Ok (Val_real Float.(f1 * of_int n2))
   | Bop_mul, Val_real f1, Val_real f2 -> Ok (Val_real Float.(f1 * f2))
   | Bop_mul, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 * t2))
 
-  | Bop_div, Val_nat n1, Val_nat n2 -> Ok (Val_real Float.(of_int n1 / of_int n2))
-  | Bop_div, Val_nat n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 / f2))
-  | Bop_div, Val_real f1, Val_nat n2 -> Ok (Val_real Float.(f1 / of_int n2))
+  | Bop_div, Val_int n1, Val_int n2 -> Ok (Val_real Float.(of_int n1 / of_int n2))
+  | Bop_div, Val_int n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 / f2))
+  | Bop_div, Val_real f1, Val_int n2 -> Ok (Val_real Float.(f1 / of_int n2))
   | Bop_div, Val_real f1, Val_real f2 -> Ok (Val_real Float.(f1 / f2))
   | Bop_div, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 / t2))
 
   | Bop_eq, Val_triv, Val_triv -> Ok (Val_bool true)
   | Bop_eq, Val_bool b1, Val_bool b2 -> Ok (Val_bool Bool.(b1 = b2))
-  | Bop_eq, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 = n2))
-  | Bop_eq, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 = f2))
-  | Bop_eq, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 = of_int n2))
+  | Bop_eq, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 = n2))
+  | Bop_eq, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 = f2))
+  | Bop_eq, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 = of_int n2))
   | Bop_eq, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 = f2))
   | Bop_eq, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 = t2))
 
   | Bop_ne, Val_triv, Val_triv -> Ok (Val_bool false)
   | Bop_ne, Val_bool b1, Val_bool b2 -> Ok (Val_bool Bool.(b1 <> b2))
-  | Bop_ne, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 <> n2))
-  | Bop_ne, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 <> f2))
-  | Bop_ne, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 <> of_int n2))
+  | Bop_ne, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 <> n2))
+  | Bop_ne, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 <> f2))
+  | Bop_ne, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 <> of_int n2))
   | Bop_ne, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 <> f2))
   | Bop_ne, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 <> t2))
 
-  | Bop_lt, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 < n2))
-  | Bop_lt, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 < f2))
-  | Bop_lt, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 < of_int n2))
+  | Bop_lt, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 < n2))
+  | Bop_lt, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 < f2))
+  | Bop_lt, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 < of_int n2))
   | Bop_lt, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 < f2))
   | Bop_lt, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 < t2))
 
-  | Bop_le, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 <= n2))
-  | Bop_le, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 <= f2))
-  | Bop_le, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 <= of_int n2))
+  | Bop_le, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 <= n2))
+  | Bop_le, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 <= f2))
+  | Bop_le, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 <= of_int n2))
   | Bop_le, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 <= f2))
   | Bop_le, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 <= t2))
 
-  | Bop_gt, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 > n2))
-  | Bop_gt, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 > f2))
-  | Bop_gt, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 > of_int n2))
+  | Bop_gt, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 > n2))
+  | Bop_gt, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 > f2))
+  | Bop_gt, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 > of_int n2))
   | Bop_gt, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 > f2))
   | Bop_gt, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 > t2))
 
-  | Bop_ge, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 >= n2))
-  | Bop_ge, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 >= f2))
-  | Bop_ge, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 >= of_int n2))
+  | Bop_ge, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 >= n2))
+  | Bop_ge, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 >= f2))
+  | Bop_ge, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 >= of_int n2))
   | Bop_ge, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 >= f2))
   | Bop_ge, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 >= t2))
 
@@ -116,8 +116,8 @@ let rec interp_exp env exp =
   | E_real r ->
     Ok (Val_real r)
 
-  | E_nat n ->
-    Ok (Val_nat n)
+  | E_int n ->
+    Ok (Val_int n)
 
   | E_cond (exp0, exp1, exp2) ->
     let%bind value0 = interp_exp env exp0 in
@@ -141,7 +141,7 @@ let rec interp_exp env exp =
     let%bind value2 = interp_exp env exp2 in
     begin
       match value1 with
-      | Val_prim prim_func -> prim_func value2
+      | Val_prim_func prim_func -> prim_func value2
       | Val_abs (var_name, exp0, closure) ->
         interp_exp (fst env, Map.set closure ~key:var_name ~data:value2) exp0
       | _ -> bad_impl "interp_exp E_app"
@@ -160,24 +160,24 @@ let rec interp_exp env exp =
     begin
       match value0 with
       | Val_real r -> Ok (Val_tensor (Tensor.mk_f r))
-      | Val_nat n -> Ok (Val_tensor (Tensor.mk_i n))
+      | Val_int n -> Ok (Val_tensor (Tensor.mk_i n))
       | Val_bool b -> Ok (Val_tensor (Tensor.mk_b b))
       | _ -> bad_impl "interp_exp E_tensor"
     end
 
   | E_stack mexps ->
-    let mexp = ME_layer mexps in
+    let mexp = Multi_internal mexps in
     let has_real = ref false in
     let rec collect_vals = function
-      | ME_elem exp0 ->
+      | Multi_leaf exp0 ->
         let%bind value0 = interp_exp env exp0 in
         let () =
           match value0 with
           | Val_real _ -> has_real := true
           | _ -> ()
         in
-        Ok (ME_elem value0)
-      | ME_layer subs ->
+        Ok (Multi_leaf value0)
+      | Multi_internal subs ->
         let%bind rev_subs = List.fold_result subs
             ~init:[]
             ~f:(fun acc sub ->
@@ -185,12 +185,12 @@ let rec interp_exp env exp =
                 Ok (sub_value :: acc)
               )
         in
-        Ok (ME_layer (List.rev rev_subs))
+        Ok (Multi_internal (List.rev rev_subs))
     in
     let%bind mval = collect_vals mexp in
     let rec shape_of = function
-      | ME_elem _ -> []
-      | ME_layer subs ->
+      | Multi_leaf _ -> []
+      | Multi_internal subs ->
         let n = List.length subs in
         let sub = List.hd_exn subs in
         n :: shape_of sub
@@ -199,14 +199,14 @@ let rec interp_exp env exp =
     if !has_real then
       let arr = Bigarray.Genarray.create Bigarray.Float32 Bigarray.C_layout (Array.of_list dims) in
       let rec assign_elems pos = function
-        | ME_elem value0 ->
+        | Multi_leaf value0 ->
           begin
             match value0 with
             | Val_real r -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) r)
-            | Val_nat n -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int n))
+            | Val_int n -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int n))
             | _ -> bad_impl "interp_exp E_stack"
           end
-        | ME_layer subs ->
+        | Multi_internal subs ->
           Or_error.try_with (fun () ->
               List.iteri subs ~f:(fun i sub ->
                   Or_error.ok_exn (assign_elems (i :: pos) sub)
@@ -218,13 +218,13 @@ let rec interp_exp env exp =
     else
       let arr = Bigarray.Genarray.create Bigarray.Int32 Bigarray.C_layout (Array.of_list dims) in
       let rec assign_elems pos = function
-        | ME_elem value0 ->
+        | Multi_leaf value0 ->
           begin
             match value0 with
-            | Val_nat n -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Int32.of_int_exn n))
+            | Val_int n -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Int32.of_int_exn n))
             | _ -> bad_impl "interp_exp E_stack"
           end
-        | ME_layer subs ->
+        | Multi_internal subs ->
           Or_error.try_with (fun () ->
               List.iteri subs ~f:(fun i sub ->
                   Or_error.ok_exn (assign_elems (i :: pos) sub)
@@ -242,7 +242,7 @@ let rec interp_exp env exp =
         ~f:(fun acc index_exp ->
             let%bind index_value = interp_exp env index_exp in
             match index_value with
-            | Val_nat n -> Ok (n :: acc)
+            | Val_int n -> Ok (n :: acc)
             | _ -> bad_impl "interp_exp E_index"
           )
     in
@@ -260,7 +260,7 @@ let rec interp_exp env exp =
           | Torch_core.Kind.(T Int8)
           | Torch_core.Kind.(T Int16)
           | Torch_core.Kind.(T Int)
-          | Torch_core.Kind.(T Int64) -> Ok (Val_nat (Tensor.int_get tensor indexes))
+          | Torch_core.Kind.(T Int64) -> Ok (Val_int (Tensor.int_get tensor indexes))
           | Torch_core.Kind.(T Bool) -> Ok (Val_bool (Tensor.bool_get tensor indexes))
           | _ -> bad_impl "interp_exp E_index"
         end

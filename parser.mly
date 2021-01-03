@@ -222,7 +222,7 @@ base_prim_ty:
     | SIMPLEX; LBRACKET; n = INTV; RBRACKET
       { Bty_simplex n }
     | type_name = mkloc(long_ident)
-      { Bty_external type_name }
+      { Bty_var type_name }
     )
     { $1 }
 
@@ -323,11 +323,11 @@ prim_exp:
     | FALSE
       { E_bool false }
     | n = INTV
-      { E_nat n }
+      { E_int n }
     | r = FLOATV
       { E_real r }
     | MINUS; n = INTV
-      { E_nat (- n) }
+      { E_int (- n) }
     | MINUS; r = FLOATV
       { E_real (-. r) }
     | LET; var_name = mkloc(LIDENT); EQUAL; exp1 = exp; IN; exp2 = exp; END
@@ -349,9 +349,9 @@ prim_exp:
 
 tensor:
   | exp = exp
-    { ME_elem exp }
+    { Multi_leaf exp }
   | LBRACKETBAR; exps = separated_nonempty_list(SEMI, tensor); BARRBRACKET
-    { ME_layer exps }
+    { Multi_internal exps }
 
 dist(RHS):
   | BER; LPAREN; arg = RHS; RPAREN

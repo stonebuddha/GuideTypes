@@ -39,7 +39,7 @@ and base_ty_desc =
   | Bty_dist of base_ty
   | Bty_tensor of prim_ty * int list
   | Bty_simplex of int
-  | Bty_external of type_id
+  | Bty_var of type_id
   | Bty_product of base_ty list
 
 type base_tyv =
@@ -49,7 +49,7 @@ type base_tyv =
   | Btyv_dist of base_tyv
   | Btyv_tensor of prim_ty * int list
   | Btyv_simplex of int
-  | Btyv_external of long_ident
+  | Btyv_var of long_ident
   | Btyv_product of base_tyv list
 [@@deriving equal]
 
@@ -95,7 +95,7 @@ and exp_desc =
   | E_bool of bool
   | E_cond of exp * exp * exp
   | E_real of float
-  | E_nat of int
+  | E_int of int
   | E_binop of binop loc * exp * exp
   | E_abs of string loc * base_ty * exp
   | E_app of exp * exp
@@ -108,8 +108,8 @@ and exp_desc =
   | E_field of exp * int
 
 and 'a multilayer =
-  | ME_elem of 'a
-  | ME_layer of 'a multilayer list
+  | Multi_leaf of 'a
+  | Multi_internal of 'a multilayer list
 
 type cmd = {
   cmd_desc: cmd_desc;
