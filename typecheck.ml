@@ -12,7 +12,7 @@ let is_prim_numeric = function
   | Pty_fnat _
   | Pty_nat
   | Pty_int -> true
-  | _ -> false
+  | Pty_bool -> false
 
 let is_prim_subtype pty1 pty2 =
   match pty1, pty2 with
@@ -45,11 +45,10 @@ let rec is_subtype tyv1 tyv2 =
   | Btyv_unit, Btyv_unit -> true
   | Btyv_dist tyv1', Btyv_dist tyv2' -> equal_base_tyv tyv1' tyv2'
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) -> is_subtype tyv21 tyv11 && is_subtype tyv12 tyv22
-  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when equal_shape dims1 dims2 -> is_prim_subtype pty1 pty2
-  | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 -> true
-  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when equal_shape [n1] dims2 -> is_prim_subtype Pty_ureal pty2
-  | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] -> is_prim_subtype pty1 Pty_ureal
-  | Btyv_var name1, Btyv_var name2 -> equal_long_ident name1 name2
+  | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) -> equal_shape dims1 dims2 && is_prim_subtype pty1 pty2
+  | Btyv_simplex n1, Btyv_simplex n2 -> n1 = n2
+  | Btyv_simplex n1, Btyv_tensor (pty2, dims2) -> equal_shape [n1] dims2 && is_prim_subtype Pty_ureal pty2
+  | Btyv_var ident1, Btyv_var ident2 -> equal_long_ident ident1 ident2
   | Btyv_product tyvs1, Btyv_product tyvs2 ->
     List.length tyvs1 = List.length tyvs2
     && List.for_all2_exn tyvs1 tyvs2 ~f:is_subtype
@@ -61,7 +60,12 @@ let join_prim ~loc pty1 pty2 =
   else if is_prim_subtype pty2 pty1 then
     Ok pty1
   else
-    Or_error.of_exn (Type_error ("join error", loc))
+    match pty1, pty2 with
+    | Pty_fnat n, Pty_ureal when n > 2 -> Ok Pty_preal
+    | Pty_nat, Pty_ureal -> Ok Pty_preal
+    | Pty_int, Pty_ureal -> Ok Pty_real
+    | Pty_int, Pty_preal -> Ok Pty_real
+    | _ -> Or_error.of_exn (Type_error ("join error", loc))
 
 let meet_prim ~loc pty1 pty2 =
   if is_prim_subtype pty1 pty2 then
@@ -78,11 +82,8 @@ let rec join_type ~loc tyv1 tyv2 =
     Ok (Btyv_prim pty)
   | Btyv_unit, Btyv_unit ->
     Ok Btyv_unit
-  | Btyv_dist tyv1', Btyv_dist tyv2' ->
-    if equal_base_tyv tyv1' tyv2' then
-      Ok (Btyv_dist tyv1')
-    else
-      Or_error.of_exn (Type_error ("join error", loc))
+  | Btyv_dist tyv1', Btyv_dist tyv2' when equal_base_tyv tyv1' tyv2' ->
+    Ok (Btyv_dist tyv1')
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) ->
     let%bind tyv1' = meet_type ~loc tyv11 tyv21 in
     let%bind tyv2' = join_type ~loc tyv12 tyv22 in
@@ -98,20 +99,17 @@ let rec join_type ~loc tyv1 tyv2 =
   | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] ->
     let%bind pty = join_prim ~loc pty1 Pty_ureal in
     Ok (Btyv_tensor (pty, dims1))
-  | Btyv_var name1, Btyv_var name2 when equal_long_ident name1 name2 ->
-    Ok (Btyv_var name1)
-  | Btyv_product tyvs1, Btyv_product tyvs2 ->
-    if List.length tyvs1 <> List.length tyvs2 then
-      Or_error.of_exn (Type_error ("mismatched tuple sizes", loc))
-    else
-      let%bind tyvs = List.fold_result (List.zip_exn tyvs1 tyvs2)
-          ~init:[]
-          ~f:(fun acc (tyv1, tyv2) ->
-              let%bind tyv' = join_type ~loc tyv1 tyv2 in
-              Ok (tyv' :: acc)
-            )
-      in
-      Ok (Btyv_product (List.rev tyvs))
+  | Btyv_var ident1, Btyv_var ident2 when equal_long_ident ident1 ident2 ->
+    Ok (Btyv_var ident1)
+  | Btyv_product tyvs1, Btyv_product tyvs2 when List.length tyvs1 = List.length tyvs2 ->
+    let%bind tyvs = Utils.fold_right_result (List.zip_exn tyvs1 tyvs2)
+        ~init:[]
+        ~f:(fun (tyv1, tyv2) acc ->
+            let%bind tyv = join_type ~loc tyv1 tyv2 in
+            Ok (tyv :: acc)
+          )
+    in
+    Ok (Btyv_product tyvs)
   | _ ->
     Or_error.of_exn (Type_error ("join error", loc))
 
@@ -122,11 +120,8 @@ and meet_type ~loc tyv1 tyv2 =
     Ok (Btyv_prim pty)
   | Btyv_unit, Btyv_unit ->
     Ok Btyv_unit
-  | Btyv_dist tyv1', Btyv_dist tyv2' ->
-    if equal_base_tyv tyv1' tyv2' then
-      Ok (Btyv_dist tyv1')
-    else
-      Or_error.of_exn (Type_error ("meet error", loc))
+  | Btyv_dist tyv1', Btyv_dist tyv2' when equal_base_tyv tyv1' tyv2' ->
+    Ok (Btyv_dist tyv1')
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) ->
     let%bind tyv1' = join_type ~loc tyv11 tyv21 in
     let%bind tyv2' = meet_type ~loc tyv12 tyv22 in
@@ -142,20 +137,17 @@ and meet_type ~loc tyv1 tyv2 =
   | Btyv_tensor (pty1, dims1), Btyv_simplex n2 when equal_shape dims1 [n2] ->
     let%bind pty = meet_prim ~loc pty1 Pty_ureal in
     Ok (Btyv_tensor (pty, dims1))
-  | Btyv_var name1, Btyv_var name2 when equal_long_ident name1 name2 ->
-    Ok (Btyv_var name1)
-  | Btyv_product tyvs1, Btyv_product tyvs2 ->
-    if List.length tyvs1 <> List.length tyvs2 then
-      Or_error.of_exn (Type_error ("mismatched tuple sizes", loc))
-    else
-      let%bind tyvs = List.fold_result (List.zip_exn tyvs1 tyvs2)
-          ~init:[]
-          ~f:(fun acc (tyv1, tyv2) ->
-              let%bind tyv' = meet_type ~loc tyv1 tyv2 in
-              Ok (tyv' :: acc)
-            )
-      in
-      Ok (Btyv_product (List.rev tyvs))
+  | Btyv_var ident1, Btyv_var ident2 when equal_long_ident ident1 ident2 ->
+    Ok (Btyv_var ident1)
+  | Btyv_product tyvs1, Btyv_product tyvs2 when List.length tyvs1 = List.length tyvs2 ->
+    let%bind tyvs = Utils.fold_right_result (List.zip_exn tyvs1 tyvs2)
+        ~init:[]
+        ~f:(fun (tyv1, tyv2) acc ->
+            let%bind tyv = meet_type ~loc tyv1 tyv2 in
+            Ok (tyv :: acc)
+          )
+    in
+    Ok (Btyv_product tyvs)
   | _ ->
     Or_error.of_exn (Type_error ("meet error", loc))
 
@@ -167,7 +159,7 @@ let rec eval_ty ty =
   | Bty_dist ty0 -> Btyv_dist (eval_ty ty0)
   | Bty_tensor (pty, dims) -> Btyv_tensor (pty, dims)
   | Bty_simplex n -> Btyv_simplex n
-  | Bty_var type_name -> Btyv_var type_name.txt
+  | Bty_var ident -> Btyv_var ident.txt
   | Bty_product tys -> Btyv_product (List.map tys ~f:eval_ty)
 
 let tycheck_bop_prim bop pty1 pty2 =
@@ -175,69 +167,134 @@ let tycheck_bop_prim bop pty1 pty2 =
   | Bop_add, Pty_ureal, Pty_ureal
   | Bop_add, Pty_ureal, Pty_preal -> Ok Pty_preal
   | Bop_add, Pty_ureal, Pty_real -> Ok Pty_real
+  | Bop_add, Pty_ureal, Pty_fnat _
+  | Bop_add, Pty_ureal, Pty_nat -> Ok Pty_preal
+  | Bop_add, Pty_ureal, Pty_int -> Ok Pty_real
   | Bop_add, Pty_preal, Pty_ureal
   | Bop_add, Pty_preal, Pty_preal -> Ok Pty_preal
   | Bop_add, Pty_preal, Pty_real -> Ok Pty_real
+  | Bop_add, Pty_preal, Pty_fnat _
+  | Bop_add, Pty_preal, Pty_nat -> Ok Pty_preal
+  | Bop_add, Pty_preal, Pty_int -> Ok Pty_real
   | Bop_add, Pty_real, Pty_ureal
   | Bop_add, Pty_real, Pty_preal
-  | Bop_add, Pty_real, Pty_real -> Ok Pty_real
+  | Bop_add, Pty_real, Pty_real
+  | Bop_add, Pty_real, Pty_fnat _
+  | Bop_add, Pty_real, Pty_nat
+  | Bop_add, Pty_real, Pty_int -> Ok Pty_real
   | Bop_add, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n + m))
   | Bop_add, Pty_fnat _, Pty_nat -> Ok Pty_nat
   | Bop_add, Pty_fnat _, Pty_int -> Ok Pty_int
+  | Bop_add, Pty_fnat _, Pty_ureal
+  | Bop_add, Pty_fnat _, Pty_preal -> Ok Pty_preal
+  | Bop_add, Pty_fnat _, Pty_real -> Ok Pty_real
   | Bop_add, Pty_nat, Pty_fnat _
   | Bop_add, Pty_nat, Pty_nat -> Ok Pty_nat
   | Bop_add, Pty_nat, Pty_int -> Ok Pty_int
+  | Bop_add, Pty_nat, Pty_ureal
+  | Bop_add, Pty_nat, Pty_preal -> Ok Pty_preal
+  | Bop_add, Pty_nat, Pty_real -> Ok Pty_real
   | Bop_add, Pty_int, Pty_fnat _
   | Bop_add, Pty_int, Pty_nat
   | Bop_add, Pty_int, Pty_int -> Ok Pty_int
+  | Bop_add, Pty_int, Pty_ureal
+  | Bop_add, Pty_int, Pty_preal
+  | Bop_add, Pty_int, Pty_real -> Ok Pty_real
 
   | Bop_sub, Pty_ureal, Pty_ureal
   | Bop_sub, Pty_ureal, Pty_preal
-  | Bop_sub, Pty_ureal, Pty_real -> Ok Pty_real
+  | Bop_sub, Pty_ureal, Pty_real
+  | Bop_sub, Pty_ureal, Pty_fnat _
+  | Bop_sub, Pty_ureal, Pty_nat
+  | Bop_sub, Pty_ureal, Pty_int -> Ok Pty_real
   | Bop_sub, Pty_preal, Pty_ureal
   | Bop_sub, Pty_preal, Pty_preal
-  | Bop_sub, Pty_preal, Pty_real -> Ok Pty_real
+  | Bop_sub, Pty_preal, Pty_real
+  | Bop_sub, Pty_preal, Pty_fnat _
+  | Bop_sub, Pty_preal, Pty_nat
+  | Bop_sub, Pty_preal, Pty_int -> Ok Pty_real
   | Bop_sub, Pty_real, Pty_ureal
   | Bop_sub, Pty_real, Pty_preal
-  | Bop_sub, Pty_real, Pty_real -> Ok Pty_real
+  | Bop_sub, Pty_real, Pty_real
+  | Bop_sub, Pty_real, Pty_fnat _
+  | Bop_sub, Pty_real, Pty_nat
+  | Bop_sub, Pty_real, Pty_int -> Ok Pty_real
   | Bop_sub, Pty_fnat _, Pty_fnat _
   | Bop_sub, Pty_fnat _, Pty_nat
   | Bop_sub, Pty_fnat _, Pty_int -> Ok Pty_int
+  | Bop_sub, Pty_fnat _, Pty_ureal
+  | Bop_sub, Pty_fnat _, Pty_preal
+  | Bop_sub, Pty_fnat _, Pty_real -> Ok Pty_real
   | Bop_sub, Pty_nat, Pty_fnat _
   | Bop_sub, Pty_nat, Pty_nat
   | Bop_sub, Pty_nat, Pty_int -> Ok Pty_int
+  | Bop_sub, Pty_nat, Pty_ureal
+  | Bop_sub, Pty_nat, Pty_preal
+  | Bop_sub, Pty_nat, Pty_real -> Ok Pty_real
   | Bop_sub, Pty_int, Pty_fnat _
   | Bop_sub, Pty_int, Pty_nat
   | Bop_sub, Pty_int, Pty_int -> Ok Pty_int
+  | Bop_sub, Pty_int, Pty_ureal
+  | Bop_sub, Pty_int, Pty_preal
+  | Bop_sub, Pty_int, Pty_real -> Ok Pty_real
 
   | Bop_mul, Pty_ureal, Pty_ureal -> Ok Pty_ureal
   | Bop_mul, Pty_ureal, Pty_preal -> Ok Pty_preal
   | Bop_mul, Pty_ureal, Pty_real -> Ok Pty_real
+  | Bop_mul, Pty_ureal, Pty_fnat n when n <= 2 -> Ok Pty_ureal
+  | Bop_mul, Pty_ureal, Pty_fnat _
+  | Bop_mul, Pty_ureal, Pty_nat -> Ok Pty_preal
+  | Bop_mul, Pty_ureal, Pty_int -> Ok Pty_real
   | Bop_mul, Pty_preal, Pty_ureal
   | Bop_mul, Pty_preal, Pty_preal -> Ok Pty_preal
   | Bop_mul, Pty_preal, Pty_real -> Ok Pty_real
+  | Bop_mul, Pty_preal, Pty_fnat _
+  | Bop_mul, Pty_preal, Pty_nat -> Ok Pty_preal
+  | Bop_mul, Pty_preal, Pty_int -> Ok Pty_real
   | Bop_mul, Pty_real, Pty_ureal
   | Bop_mul, Pty_real, Pty_preal
-  | Bop_mul, Pty_real, Pty_real -> Ok Pty_real
+  | Bop_mul, Pty_real, Pty_real
+  | Bop_mul, Pty_real, Pty_fnat _
+  | Bop_mul, Pty_real, Pty_nat
+  | Bop_mul, Pty_real, Pty_int -> Ok Pty_real
   | Bop_mul, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n * m))
   | Bop_mul, Pty_fnat _, Pty_nat -> Ok Pty_nat
   | Bop_mul, Pty_fnat _, Pty_int -> Ok Pty_int
+  | Bop_mul, Pty_fnat n, Pty_ureal when n <= 2 -> Ok Pty_ureal
+  | Bop_mul, Pty_fnat _, Pty_ureal
+  | Bop_mul, Pty_fnat _, Pty_preal -> Ok Pty_preal
+  | Bop_mul, Pty_fnat _, Pty_real -> Ok Pty_real
   | Bop_mul, Pty_nat, Pty_fnat _
   | Bop_mul, Pty_nat, Pty_nat -> Ok Pty_nat
   | Bop_mul, Pty_nat, Pty_int -> Ok Pty_int
+  | Bop_mul, Pty_nat, Pty_ureal
+  | Bop_mul, Pty_nat, Pty_preal -> Ok Pty_preal
+  | Bop_mul, Pty_nat, Pty_real -> Ok Pty_real
   | Bop_mul, Pty_int, Pty_fnat _
   | Bop_mul, Pty_int, Pty_nat
   | Bop_mul, Pty_int, Pty_int -> Ok Pty_int
+  | Bop_mul, Pty_int, Pty_ureal
+  | Bop_mul, Pty_int, Pty_preal
+  | Bop_mul, Pty_int, Pty_real -> Ok Pty_real
 
   | Bop_div, Pty_ureal, Pty_ureal
   | Bop_div, Pty_ureal, Pty_preal -> Ok Pty_preal
   | Bop_div, Pty_ureal, Pty_real -> Ok Pty_real
+  | Bop_div, Pty_ureal, Pty_fnat _
+  | Bop_div, Pty_ureal, Pty_nat -> Ok Pty_ureal
+  | Bop_div, Pty_ureal, Pty_int -> Ok Pty_real
   | Bop_div, Pty_preal, Pty_ureal
   | Bop_div, Pty_preal, Pty_preal -> Ok Pty_preal
   | Bop_div, Pty_preal, Pty_real -> Ok Pty_real
+  | Bop_div, Pty_preal, Pty_fnat _
+  | Bop_div, Pty_preal, Pty_nat -> Ok Pty_preal
+  | Bop_div, Pty_preal, Pty_int -> Ok Pty_real
   | Bop_div, Pty_real, Pty_ureal
   | Bop_div, Pty_real, Pty_preal
   | Bop_div, Pty_real, Pty_real -> Ok Pty_real
+  | Bop_div, Pty_real, Pty_fnat _
+  | Bop_div, Pty_real, Pty_nat
+  | Bop_div, Pty_real, Pty_int -> Ok Pty_real
 
   | Bop_eq, pty1, pty2
   | Bop_ne, pty1, pty2 when is_prim_subtype pty1 pty2 || is_prim_subtype pty2 pty1 -> Ok Pty_bool
