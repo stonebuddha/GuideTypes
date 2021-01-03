@@ -18,7 +18,6 @@ type channel_id = string loc
 type session_id = string loc
 
 type prim_ty =
-  | Pty_unit
   | Pty_bool
   | Pty_ureal
   | Pty_preal
@@ -35,6 +34,7 @@ type base_ty = {
 
 and base_ty_desc =
   | Bty_prim of prim_ty
+  | Bty_unit
   | Bty_arrow of base_ty * base_ty
   | Bty_dist of base_ty
   | Bty_tensor of prim_ty * int list
@@ -44,6 +44,7 @@ and base_ty_desc =
 
 type base_tyv =
   | Btyv_prim of prim_ty
+  | Btyv_unit
   | Btyv_arrow of base_tyv * base_tyv
   | Btyv_dist of base_tyv
   | Btyv_tensor of prim_ty * int list
@@ -101,14 +102,14 @@ and exp_desc =
   | E_let of exp * string loc * exp
   | E_dist of exp dist
   | E_tensor of exp
-  | E_stack of multilayer_exp list
+  | E_stack of exp multilayer list
   | E_index of exp * exp list
   | E_tuple of exp list
   | E_field of exp * int
 
-and multilayer_exp =
-  | ME_elem of exp
-  | ME_layer of multilayer_exp list
+and 'a multilayer =
+  | ME_elem of 'a
+  | ME_layer of 'a multilayer list
 
 type cmd = {
   cmd_desc: cmd_desc;

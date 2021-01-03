@@ -1,5 +1,4 @@
 open Core
-open Torch
 open Ast_types
 open Value_types
 open Or_error.Let_syntax
@@ -63,26 +62,31 @@ let eval_bop bop value1 value2 =
   | Bop_ne, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 <> f2))
   | Bop_ne, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 <> of_int n2))
   | Bop_ne, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 <> f2))
+  | Bop_ne, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 <> t2))
 
   | Bop_lt, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 < n2))
   | Bop_lt, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 < f2))
   | Bop_lt, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 < of_int n2))
   | Bop_lt, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 < f2))
+  | Bop_lt, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 < t2))
 
   | Bop_le, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 <= n2))
   | Bop_le, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 <= f2))
   | Bop_le, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 <= of_int n2))
   | Bop_le, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 <= f2))
+  | Bop_le, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 <= t2))
 
   | Bop_gt, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 > n2))
   | Bop_gt, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 > f2))
   | Bop_gt, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 > of_int n2))
   | Bop_gt, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 > f2))
+  | Bop_gt, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 > t2))
 
   | Bop_ge, Val_nat n1, Val_nat n2 -> Ok (Val_bool (n1 >= n2))
   | Bop_ge, Val_nat n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 >= f2))
   | Bop_ge, Val_real f1, Val_nat n2 -> Ok (Val_bool Float.(f1 >= of_int n2))
   | Bop_ge, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 >= f2))
+  | Bop_ge, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 >= t2))
 
   | Bop_and, Val_bool b1, Val_bool b2 -> Ok (Val_bool (b1 && b2))
 
@@ -151,39 +155,80 @@ let rec interp_exp env exp =
     let%bind value0 = interp_exp env exp0 in
     begin
       match value0 with
-      | Val_real r -> Ok (Val_tensor (Tensor.f r))
+      | Val_real r -> Ok (Val_tensor (Tensor.mk_f r))
+      | Val_nat n -> Ok (Val_tensor (Tensor.mk_i n))
+      | Val_bool b -> Ok (Val_tensor (Tensor.mk_b b))
       | _ -> bad_impl "interp_exp E_tensor"
     end
 
   | E_stack mexps ->
     let mexp = ME_layer mexps in
-    let rec collect_dims = function
+    let has_real = ref false in
+    let rec collect_vals = function
+      | ME_elem exp0 ->
+        let%bind value0 = interp_exp env exp0 in
+        let () =
+          match value0 with
+          | Val_real _ -> has_real := true
+          | _ -> ()
+        in
+        Ok (ME_elem value0)
+      | ME_layer subs ->
+        let%bind rev_subs = List.fold_result subs
+            ~init:[]
+            ~f:(fun acc sub ->
+                let%bind sub_value = collect_vals sub in
+                Ok (sub_value :: acc)
+              )
+        in
+        Ok (ME_layer (List.rev rev_subs))
+    in
+    let%bind mval = collect_vals mexp in
+    let rec shape_of = function
       | ME_elem _ -> []
       | ME_layer subs ->
         let n = List.length subs in
         let sub = List.hd_exn subs in
-        n :: collect_dims sub
+        n :: shape_of sub
     in
-    let dims = collect_dims mexp in
-    let arr = Bigarray.Genarray.create Bigarray.Float64 Bigarray.C_layout (Array.of_list dims) in
-    let rec assign_elems pos = function
-      | ME_elem exp0 ->
-        let%bind value0 = interp_exp env exp0 in
-        begin
-          match value0 with
-          | Val_real r -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) r)
-          | Val_nat n -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int n))
-          | _ -> bad_impl "interp_exp E_stack"
-        end
-      | ME_layer subs ->
-        Or_error.try_with (fun () ->
-            List.iteri subs ~f:(fun i sub ->
-                Or_error.ok_exn (assign_elems (i :: pos) sub)
-              )
-          )
-    in
-    let%bind () = assign_elems [] mexp in
-    Ok (Val_tensor (Tensor.of_bigarray arr))
+    let dims = shape_of mval in
+    if !has_real then
+      let arr = Bigarray.Genarray.create Bigarray.Float32 Bigarray.C_layout (Array.of_list dims) in
+      let rec assign_elems pos = function
+        | ME_elem value0 ->
+          begin
+            match value0 with
+            | Val_real r -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) r)
+            | Val_nat n -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int n))
+            | _ -> bad_impl "interp_exp E_stack"
+          end
+        | ME_layer subs ->
+          Or_error.try_with (fun () ->
+              List.iteri subs ~f:(fun i sub ->
+                  Or_error.ok_exn (assign_elems (i :: pos) sub)
+                )
+            )
+      in
+      let%bind () = assign_elems [] mval in
+      Ok (Val_tensor (Tensor.of_bigarray arr))
+    else
+      let arr = Bigarray.Genarray.create Bigarray.Int32 Bigarray.C_layout (Array.of_list dims) in
+      let rec assign_elems pos = function
+        | ME_elem value0 ->
+          begin
+            match value0 with
+            | Val_nat n -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Int32.of_int_exn n))
+            | _ -> bad_impl "interp_exp E_stack"
+          end
+        | ME_layer subs ->
+          Or_error.try_with (fun () ->
+              List.iteri subs ~f:(fun i sub ->
+                  Or_error.ok_exn (assign_elems (i :: pos) sub)
+                )
+            )
+      in
+      let%bind () = assign_elems [] mval in
+      Ok (Val_tensor (Tensor.of_bigarray arr))
 
   | E_index (base_exp, index_exps) ->
     let%bind base_value = interp_exp env base_exp in
@@ -201,7 +246,20 @@ let rec interp_exp env exp =
     begin
       match base_value with
       | Val_tensor tensor ->
-        Ok (Val_real (Tensor.float_get tensor indexes))
+        let kind = Tensor.kind tensor in
+        begin
+          match kind with
+          | Torch_core.Kind.(T Half)
+          | Torch_core.Kind.(T Float)
+          | Torch_core.Kind.(T Double) -> Ok (Val_real (Tensor.float_get tensor indexes))
+          | Torch_core.Kind.(T Uint8)
+          | Torch_core.Kind.(T Int8)
+          | Torch_core.Kind.(T Int16)
+          | Torch_core.Kind.(T Int)
+          | Torch_core.Kind.(T Int64) -> Ok (Val_nat (Tensor.int_get tensor indexes))
+          | Torch_core.Kind.(T Bool) -> Ok (Val_bool (Tensor.bool_get tensor indexes))
+          | _ -> bad_impl "interp_exp E_index"
+        end
       | _ -> bad_impl "interp_exp E_index"
     end
 

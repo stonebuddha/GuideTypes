@@ -213,6 +213,8 @@ base_prim_ty:
   | mkbty(
       pty = prim_ty
       { Bty_prim pty }
+    | UNIT
+      { Bty_unit }
     | bty = base_prim_ty; DIST
       { Bty_dist bty }
     | LPAREN; pty = prim_ty; SEMI; LBRACKET; dims = separated_list(SEMI, INTV); RBRACKET; RPAREN; TENSOR
@@ -225,8 +227,6 @@ base_prim_ty:
     { $1 }
 
 prim_ty:
-  | UNIT
-    { Pty_unit }
   | BOOL
     { Pty_bool }
   | UREAL

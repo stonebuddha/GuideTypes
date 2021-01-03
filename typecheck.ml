@@ -16,7 +16,6 @@ let is_prim_numeric = function
 
 let is_prim_subtype pty1 pty2 =
   match pty1, pty2 with
-  | Pty_unit, Pty_unit -> true
   | Pty_bool, Pty_bool -> true
   | Pty_ureal, Pty_ureal
   | Pty_ureal, Pty_preal
@@ -43,6 +42,7 @@ let equal_shape = List.equal Int.equal
 let rec is_subtype tyv1 tyv2 =
   match tyv1, tyv2 with
   | Btyv_prim pty1, Btyv_prim pty2 -> is_prim_subtype pty1 pty2
+  | Btyv_unit, Btyv_unit -> true
   | Btyv_dist tyv1', Btyv_dist tyv2' -> equal_base_tyv tyv1' tyv2'
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) -> is_subtype tyv21 tyv11 && is_subtype tyv12 tyv22
   | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when equal_shape dims1 dims2 -> is_prim_subtype pty1 pty2
@@ -76,6 +76,8 @@ let rec join_type ~loc tyv1 tyv2 =
   | Btyv_prim pty1, Btyv_prim pty2 ->
     let%bind pty = join_prim ~loc pty1 pty2 in
     Ok (Btyv_prim pty)
+  | Btyv_unit, Btyv_unit ->
+    Ok Btyv_unit
   | Btyv_dist tyv1', Btyv_dist tyv2' ->
     if equal_base_tyv tyv1' tyv2' then
       Ok (Btyv_dist tyv1')
@@ -118,6 +120,8 @@ and meet_type ~loc tyv1 tyv2 =
   | Btyv_prim pty1, Btyv_prim pty2 ->
     let%bind pty = meet_prim ~loc pty1 pty2 in
     Ok (Btyv_prim pty)
+  | Btyv_unit, Btyv_unit ->
+    Ok Btyv_unit
   | Btyv_dist tyv1', Btyv_dist tyv2' ->
     if equal_base_tyv tyv1' tyv2' then
       Ok (Btyv_dist tyv1')
@@ -158,6 +162,7 @@ and meet_type ~loc tyv1 tyv2 =
 let rec eval_ty ty =
   match ty.bty_desc with
   | Bty_prim pty -> Btyv_prim pty
+  | Bty_unit -> Btyv_unit
   | Bty_arrow (ty1, ty2) -> Btyv_arrow (eval_ty ty1, eval_ty ty2)
   | Bty_dist ty0 -> Btyv_dist (eval_ty ty0)
   | Bty_tensor (pty, dims) -> Btyv_tensor (pty, dims)
@@ -325,7 +330,7 @@ let rec tycheck_exp ctxt exp =
       | Some (Ftyv_base tyv) -> Ok tyv
       | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident var_name.txt, exp.exp_loc))
     end
-  | E_triv -> Ok (Btyv_prim Pty_unit)
+  | E_triv -> Ok Btyv_unit
   | E_bool _ -> Ok (Btyv_prim Pty_bool)
   | E_cond (exp0, exp1, exp2) ->
     let%bind tyv0 = tycheck_exp ctxt exp0 in
@@ -385,7 +390,25 @@ let rec tycheck_exp ctxt exp =
   | E_stack mexps ->
     let mexp = ME_layer mexps in
     let%bind (dims, pty) = dims_of_mexp ~loc:exp.exp_loc (tycheck_exp ctxt) mexp in
-    Ok (Btyv_tensor (pty, dims))
+    if not (is_prim_numeric pty) then
+      Or_error.of_exn (Type_error ("non-numeric element type", exp.exp_loc))
+    else if List.length dims = 1 && (
+        let prob = List.fold_result mexps
+            ~init:0.0
+            ~f:(fun acc mexp ->
+                match mexp with
+                | ME_elem { exp_desc = E_real r; _ } when Float.(r >= 0.) -> Ok Float.(acc + r)
+                | ME_elem { exp_desc = E_nat n; _ } when n >= 0 -> Ok Float.(acc + of_int n)
+                | _ -> Or_error.error_string ""
+              )
+        in
+        match prob with
+        | Error _ -> false
+        | Ok prob -> Float.(abs (prob - 1.) < 1e-12)
+      ) then
+      Ok (Btyv_simplex (List.hd_exn dims))
+    else
+      Ok (Btyv_tensor (pty, dims))
   | E_index (base_exp, index_exps) ->
     let%bind base_tyv = tycheck_exp ctxt base_exp in
     begin
@@ -560,7 +583,7 @@ let collect_func_sigs prog =
       | Top_proc _ -> None
       | Top_func (func_name, { func_param_tys ; func_ret_ty; _ }) -> Some (func_name.txt, Btyv_arrow (
           (match func_param_tys with
-           | [] -> Btyv_prim (Pty_unit)
+           | [] -> Btyv_unit
            | [(_, ty)] -> eval_ty ty
            | _ -> Btyv_product (List.map func_param_tys ~f:(fun (_, ty) -> eval_ty ty))),
           eval_ty func_ret_ty

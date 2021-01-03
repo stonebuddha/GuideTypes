@@ -6,7 +6,6 @@ let string_of_long_ident = function
   | Lident_path (lib_name, name) -> lib_name ^ "." ^ name
 
 let print_prim_ty fmt = function
-  | Pty_unit -> Format.fprintf fmt "unit"
   | Pty_bool -> Format.fprintf fmt "bool"
   | Pty_ureal -> Format.fprintf fmt "ureal"
   | Pty_preal -> Format.fprintf fmt "preal"
@@ -36,6 +35,8 @@ and print_base_tyv_prod fmt = function
 and print_base_tyv_prim fmt = function
   | Btyv_prim pty ->
     print_prim_ty fmt pty
+  | Btyv_unit ->
+    Format.fprintf fmt "unit"
   | Btyv_dist tyv ->
     Format.fprintf fmt "%a dist" print_base_tyv_prim tyv
   | Btyv_tensor (pty, dims) ->
