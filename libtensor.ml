@@ -2,6 +2,8 @@ open Core
 open Ast_types
 open Value_types
 
+let bad_impl = Utils.bad_implementation
+
 (* Type Specs *)
 
 let ft_gen0 pty = Ftyv_poly
@@ -53,9 +55,6 @@ let prelude = String.Map.of_alist_exn [
   ]
 
 (* Library functions *)
-
-let bad_impl func =
-  raise Error.(to_exn (of_string ("bad implementation: " ^ func)))
 
 let pf_gen0 pf name = Fval_poly
     (fun dims ->

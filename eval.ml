@@ -5,8 +5,7 @@ open Or_error.Let_syntax
 
 exception Eval_error of string * Location.t
 
-let bad_impl func =
-  raise Error.(to_exn (of_string ("bad implementation: " ^ func)))
+let bad_impl = Utils.bad_implementation
 
 let lookup_env (libs, cur) lid =
   match lid with
@@ -52,7 +51,6 @@ let eval_bop bop value1 value2 =
   | Bop_div, Val_real f1, Val_real f2 -> Ok (Val_real Float.(f1 / f2))
   | Bop_div, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 / t2))
 
-  | Bop_eq, Val_triv, Val_triv -> Ok (Val_bool true)
   | Bop_eq, Val_bool b1, Val_bool b2 -> Ok (Val_bool Bool.(b1 = b2))
   | Bop_eq, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 = n2))
   | Bop_eq, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 = f2))
@@ -60,7 +58,6 @@ let eval_bop bop value1 value2 =
   | Bop_eq, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 = f2))
   | Bop_eq, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 = t2))
 
-  | Bop_ne, Val_triv, Val_triv -> Ok (Val_bool false)
   | Bop_ne, Val_bool b1, Val_bool b2 -> Ok (Val_bool Bool.(b1 <> b2))
   | Bop_ne, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 <> n2))
   | Bop_ne, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 <> f2))
@@ -100,11 +97,11 @@ let eval_bop bop value1 value2 =
 
 let rec interp_exp env exp =
   match exp.exp_desc with
-  | E_var var_name ->
-    Ok (Value_ops.fval_to_base_exn (Option.value_exn (lookup_env env var_name.txt)))
+  | E_var ident ->
+    Ok (Value_ops.fval_to_base_exn (Option.value_exn (lookup_env env ident.txt)))
 
-  | E_inst (var_name, dims) ->
-    let func = Value_ops.fval_to_poly_exn (Option.value_exn (lookup_env env var_name.txt)) in
+  | E_inst (ident, dims) ->
+    let func = Value_ops.fval_to_poly_exn (Option.value_exn (lookup_env env ident.txt)) in
     Ok (Option.value_exn (func dims))
 
   | E_triv ->
@@ -133,8 +130,8 @@ let rec interp_exp env exp =
     let%bind value2 = interp_exp env exp2 in
     eval_bop bop value1 value2
 
-  | E_abs (var_name, _, exp0) ->
-    Ok (Val_abs (var_name.txt, exp0, snd env))
+  | E_abs (name, _, exp0) ->
+    Ok (Val_abs (name.txt, exp0, snd env))
 
   | E_app (exp1, exp2) ->
     let%bind value1 = interp_exp env exp1 in
@@ -142,14 +139,14 @@ let rec interp_exp env exp =
     begin
       match value1 with
       | Val_prim_func prim_func -> prim_func value2
-      | Val_abs (var_name, exp0, closure) ->
-        interp_exp (fst env, Map.set closure ~key:var_name ~data:value2) exp0
+      | Val_abs (name, exp0, closure) ->
+        interp_exp (fst env, Map.set closure ~key:name ~data:value2) exp0
       | _ -> bad_impl "interp_exp E_app"
     end
 
-  | E_let (exp1, var_name, exp2) ->
+  | E_let (exp1, name, exp2) ->
     let%bind value1 = interp_exp env exp1 in
-    interp_exp (update_env env ~key:var_name.txt ~data:value1) exp2
+    interp_exp (update_env env ~key:name.txt ~data:value1) exp2
 
   | E_dist dist ->
     let%bind vdist = interp_dist env dist in
@@ -168,7 +165,7 @@ let rec interp_exp env exp =
   | E_stack mexps ->
     let mexp = Multi_internal mexps in
     let has_real = ref false in
-    let rec collect_vals = function
+    let rec collect_values = function
       | Multi_leaf exp0 ->
         let%bind value0 = interp_exp env exp0 in
         let () =
@@ -178,16 +175,16 @@ let rec interp_exp env exp =
         in
         Ok (Multi_leaf value0)
       | Multi_internal subs ->
-        let%bind rev_subs = List.fold_result subs
+        let%bind subs = Utils.fold_right_result subs
             ~init:[]
-            ~f:(fun acc sub ->
-                let%bind sub_value = collect_vals sub in
+            ~f:(fun sub acc ->
+                let%bind sub_value = collect_values sub in
                 Ok (sub_value :: acc)
               )
         in
-        Ok (Multi_internal (List.rev rev_subs))
+        Ok (Multi_internal subs)
     in
-    let%bind mval = collect_vals mexp in
+    let%bind mvalue = collect_values mexp in
     let rec shape_of = function
       | Multi_leaf _ -> []
       | Multi_internal subs ->
@@ -195,7 +192,7 @@ let rec interp_exp env exp =
         let sub = List.hd_exn subs in
         n :: shape_of sub
     in
-    let dims = shape_of mval in
+    let dims = shape_of mvalue in
     if !has_real then
       let arr = Bigarray.Genarray.create Bigarray.Float32 Bigarray.C_layout (Array.of_list dims) in
       let rec assign_elems pos = function
@@ -213,7 +210,7 @@ let rec interp_exp env exp =
                 )
             )
       in
-      let%bind () = assign_elems [] mval in
+      let%bind () = assign_elems [] mvalue in
       Ok (Val_tensor (Tensor.of_bigarray arr))
     else
       let arr = Bigarray.Genarray.create Bigarray.Int32 Bigarray.C_layout (Array.of_list dims) in
@@ -231,22 +228,21 @@ let rec interp_exp env exp =
                 )
             )
       in
-      let%bind () = assign_elems [] mval in
+      let%bind () = assign_elems [] mvalue in
       Ok (Val_tensor (Tensor.of_bigarray arr))
 
   | E_index (base_exp, index_exps) ->
     let%bind base_value = interp_exp env base_exp in
-    let%bind rev_indexes = List.fold_result
+    let%bind indexes = Utils.fold_right_result
         index_exps
         ~init:[]
-        ~f:(fun acc index_exp ->
+        ~f:(fun index_exp acc ->
             let%bind index_value = interp_exp env index_exp in
             match index_value with
             | Val_int n -> Ok (n :: acc)
             | _ -> bad_impl "interp_exp E_index"
           )
     in
-    let indexes = List.rev rev_indexes in
     begin
       match base_value with
       | Val_tensor tensor ->
@@ -269,14 +265,14 @@ let rec interp_exp env exp =
 
   | E_tuple exps ->
     let%bind values =
-      List.fold_result exps
+      Utils.fold_right_result exps
         ~init:[]
-        ~f:(fun acc exp0 ->
+        ~f:(fun exp0 acc ->
             let%bind value0 = interp_exp env exp0 in
             Ok (value0 :: acc)
           )
     in
-    Ok (Val_tuple (List.rev values))
+    Ok (Val_tuple values)
 
   | E_field (exp0, field) ->
     let%bind value0 = interp_exp env exp0 in
@@ -311,14 +307,14 @@ and interp_dist env dist =
     Ok (D_normal (value1, value2))
 
   | D_cat exps ->
-    let%bind rev_values = List.fold_result exps
+    let%bind values = Utils.fold_right_result exps
         ~init:[]
-        ~f:(fun acc exp ->
+        ~f:(fun exp acc ->
             let%bind value = interp_exp env exp in
             Ok (value :: acc)
           )
     in
-    Ok (D_cat (List.rev rev_values))
+    Ok (D_cat values)
 
   | D_discrete exp ->
     let%bind value = interp_exp env exp in
