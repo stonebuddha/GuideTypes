@@ -25,7 +25,7 @@ type prim_ty =
   | Pty_fnat of int
   | Pty_nat
   | Pty_int
-[@@deriving equal]
+[@@deriving equal, compare]
 
 type base_ty = {
   bty_desc: base_ty_desc;

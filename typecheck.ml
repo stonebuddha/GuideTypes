@@ -5,37 +5,87 @@ open Or_error.Let_syntax
 
 exception Type_error of string * Location.t
 
-let is_prim_numeric = function
-  | Pty_ureal
-  | Pty_preal
-  | Pty_real
-  | Pty_fnat _
-  | Pty_nat
-  | Pty_int -> true
-  | Pty_bool -> false
+let join_prim ~loc pty1 pty2 =
+  let pty1, pty2 =
+    if compare_prim_ty pty1 pty2 > 0 then
+      pty2, pty1
+    else
+      pty1, pty2
+  in
+  match pty1, pty2 with
+  | Pty_bool, Pty_bool -> Ok Pty_bool
+  | Pty_ureal, Pty_ureal -> Ok Pty_ureal
+  | Pty_ureal, Pty_preal -> Ok Pty_preal
+  | Pty_ureal, Pty_real -> Ok Pty_real
+  | Pty_ureal, Pty_fnat n -> if n <= 2 then Ok Pty_ureal else Ok Pty_preal
+  | Pty_ureal, Pty_nat -> Ok Pty_preal
+  | Pty_ureal, Pty_int -> Ok Pty_real
+  | Pty_preal, Pty_preal -> Ok Pty_preal
+  | Pty_preal, Pty_real -> Ok Pty_real
+  | Pty_preal, Pty_fnat _ -> Ok Pty_preal
+  | Pty_preal, Pty_nat -> Ok Pty_preal
+  | Pty_preal, Pty_int -> Ok Pty_real
+  | Pty_real, Pty_real -> Ok Pty_real
+  | Pty_real, Pty_fnat _ -> Ok Pty_real
+  | Pty_real, Pty_nat -> Ok Pty_real
+  | Pty_real, Pty_int -> Ok Pty_real
+  | Pty_fnat n1, Pty_fnat n2 -> Ok (Pty_fnat (max n1 n2))
+  | Pty_fnat _, Pty_nat -> Ok Pty_nat
+  | Pty_fnat _, Pty_int -> Ok Pty_int
+  | Pty_nat, Pty_nat -> Ok Pty_nat
+  | Pty_nat, Pty_int -> Ok Pty_int
+  | Pty_int, Pty_int -> Ok Pty_int
+  | _ -> Or_error.of_exn (Type_error ("join error", loc))
+
+let meet_prim ~loc pty1 pty2 =
+  let pty1, pty2 =
+    if compare_prim_ty pty1 pty2 > 0 then
+      pty2, pty1
+    else
+      pty1, pty2
+  in
+  match pty1, pty2 with
+  | Pty_bool, Pty_bool -> Ok Pty_bool
+  | Pty_ureal, Pty_ureal -> Ok Pty_ureal
+  | Pty_ureal, Pty_preal -> Ok Pty_ureal
+  | Pty_ureal, Pty_real -> Ok Pty_ureal
+  | Pty_ureal, Pty_fnat n -> if n <= 2 then Ok (Pty_fnat n) else Ok (Pty_fnat 2)
+  | Pty_ureal, Pty_nat -> Ok (Pty_fnat 2)
+  | Pty_ureal, Pty_int -> Ok (Pty_fnat 2)
+  | Pty_preal, Pty_preal -> Ok Pty_preal
+  | Pty_preal, Pty_real -> Ok Pty_preal
+  | Pty_preal, Pty_fnat n -> Ok (Pty_fnat n)
+  | Pty_preal, Pty_nat -> Ok Pty_nat
+  | Pty_preal, Pty_int -> Ok Pty_nat
+  | Pty_real, Pty_real -> Ok Pty_real
+  | Pty_real, Pty_fnat n -> Ok (Pty_fnat n)
+  | Pty_real, Pty_nat -> Ok Pty_nat
+  | Pty_real, Pty_int -> Ok Pty_int
+  | Pty_fnat n1, Pty_fnat n2 -> Ok (Pty_fnat (min n1 n2))
+  | Pty_fnat n, Pty_nat -> Ok (Pty_fnat n)
+  | Pty_fnat n, Pty_int -> Ok (Pty_fnat n)
+  | Pty_nat, Pty_nat -> Ok Pty_nat
+  | Pty_nat, Pty_int -> Ok Pty_nat
+  | Pty_int, Pty_int -> Ok Pty_int
+  | _ -> Or_error.of_exn (Type_error ("meet error", loc))
 
 let is_prim_subtype pty1 pty2 =
-  match pty1, pty2 with
-  | Pty_bool, Pty_bool -> true
-  | Pty_ureal, Pty_ureal
-  | Pty_ureal, Pty_preal
-  | Pty_ureal, Pty_real -> true
-  | Pty_preal, Pty_preal
-  | Pty_preal, Pty_real -> true
-  | Pty_real, Pty_real -> true
-  | Pty_fnat n, Pty_fnat m -> n <= m
-  | Pty_fnat _, Pty_nat
-  | Pty_fnat _, Pty_int -> true
-  | Pty_fnat n, Pty_ureal -> n <= 2
-  | Pty_fnat _, Pty_preal
-  | Pty_fnat _, Pty_real -> true
-  | Pty_nat, Pty_nat
-  | Pty_nat, Pty_int
-  | Pty_nat, Pty_preal
-  | Pty_nat, Pty_real -> true
-  | Pty_int, Pty_int
-  | Pty_int, Pty_real -> true
-  | _ -> false
+  match join_prim ~loc:Location.none pty1 pty2 with
+  | Ok pty -> equal_prim_ty pty pty2
+  | Error _ -> false
+
+let is_prim_numeric pty = is_prim_subtype pty Pty_real
+
+let is_prim_integer pty = is_prim_subtype pty Pty_int
+
+let cast_prim_to_real = function
+  | Pty_bool -> None
+  | Pty_ureal -> Some Pty_ureal
+  | Pty_preal -> Some Pty_preal
+  | Pty_real -> Some Pty_real
+  | Pty_fnat n -> if n <= 2 then Some Pty_ureal else Some Pty_preal
+  | Pty_nat -> Some Pty_preal
+  | Pty_int -> Some Pty_real
 
 let equal_shape = List.equal Int.equal
 
@@ -53,27 +103,6 @@ let rec is_subtype tyv1 tyv2 =
     List.length tyvs1 = List.length tyvs2
     && List.for_all2_exn tyvs1 tyvs2 ~f:is_subtype
   | _ -> false
-
-let join_prim ~loc pty1 pty2 =
-  if is_prim_subtype pty1 pty2 then
-    Ok pty2
-  else if is_prim_subtype pty2 pty1 then
-    Ok pty1
-  else
-    match pty1, pty2 with
-    | Pty_fnat n, Pty_ureal when n > 2 -> Ok Pty_preal
-    | Pty_nat, Pty_ureal -> Ok Pty_preal
-    | Pty_int, Pty_ureal -> Ok Pty_real
-    | Pty_int, Pty_preal -> Ok Pty_real
-    | _ -> Or_error.of_exn (Type_error ("join error", loc))
-
-let meet_prim ~loc pty1 pty2 =
-  if is_prim_subtype pty1 pty2 then
-    Ok pty1
-  else if is_prim_subtype pty2 pty1 then
-    Ok pty2
-  else
-    Or_error.of_exn (Type_error ("meet error", loc))
 
 let rec join_type ~loc tyv1 tyv2 =
   match tyv1, tyv2 with
@@ -163,151 +192,95 @@ let rec eval_ty ty =
   | Bty_product tys -> Btyv_product (List.map tys ~f:eval_ty)
 
 let tycheck_bop_prim bop pty1 pty2 =
-  match bop.txt, pty1, pty2 with
-  | Bop_add, Pty_ureal, Pty_ureal
-  | Bop_add, Pty_ureal, Pty_preal -> Ok Pty_preal
-  | Bop_add, Pty_ureal, Pty_real -> Ok Pty_real
-  | Bop_add, Pty_ureal, Pty_fnat _
-  | Bop_add, Pty_ureal, Pty_nat -> Ok Pty_preal
-  | Bop_add, Pty_ureal, Pty_int -> Ok Pty_real
-  | Bop_add, Pty_preal, Pty_ureal
-  | Bop_add, Pty_preal, Pty_preal -> Ok Pty_preal
-  | Bop_add, Pty_preal, Pty_real -> Ok Pty_real
-  | Bop_add, Pty_preal, Pty_fnat _
-  | Bop_add, Pty_preal, Pty_nat -> Ok Pty_preal
-  | Bop_add, Pty_preal, Pty_int -> Ok Pty_real
-  | Bop_add, Pty_real, Pty_ureal
-  | Bop_add, Pty_real, Pty_preal
-  | Bop_add, Pty_real, Pty_real
-  | Bop_add, Pty_real, Pty_fnat _
-  | Bop_add, Pty_real, Pty_nat
-  | Bop_add, Pty_real, Pty_int -> Ok Pty_real
-  | Bop_add, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n + m))
-  | Bop_add, Pty_fnat _, Pty_nat -> Ok Pty_nat
-  | Bop_add, Pty_fnat _, Pty_int -> Ok Pty_int
-  | Bop_add, Pty_fnat _, Pty_ureal
-  | Bop_add, Pty_fnat _, Pty_preal -> Ok Pty_preal
-  | Bop_add, Pty_fnat _, Pty_real -> Ok Pty_real
-  | Bop_add, Pty_nat, Pty_fnat _
-  | Bop_add, Pty_nat, Pty_nat -> Ok Pty_nat
-  | Bop_add, Pty_nat, Pty_int -> Ok Pty_int
-  | Bop_add, Pty_nat, Pty_ureal
-  | Bop_add, Pty_nat, Pty_preal -> Ok Pty_preal
-  | Bop_add, Pty_nat, Pty_real -> Ok Pty_real
-  | Bop_add, Pty_int, Pty_fnat _
-  | Bop_add, Pty_int, Pty_nat
-  | Bop_add, Pty_int, Pty_int -> Ok Pty_int
-  | Bop_add, Pty_int, Pty_ureal
-  | Bop_add, Pty_int, Pty_preal
-  | Bop_add, Pty_int, Pty_real -> Ok Pty_real
+  match bop.txt with
+  | Bop_sub ->
+    begin
+      if is_prim_integer pty1 && is_prim_integer pty2 then
+        Ok Pty_int
+      else if is_prim_numeric pty1 && is_prim_numeric pty2 then
+        Ok Pty_real
+      else
+        Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
+    end
+  | Bop_div ->
+    begin
+      match cast_prim_to_real pty1, cast_prim_to_real pty2 with
+      | Some pty1', Some pty2' ->
+        begin
+          match pty1', pty2' with
+          | Pty_real, _
+          | _, Pty_real -> Ok Pty_real
+          | _ -> Ok Pty_preal
+        end
+      | _ ->
+        Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
+    end
+  | _ ->
+    let pty1, pty2 =
+      if compare_prim_ty pty1 pty2 > 0 then
+        pty2, pty1
+      else
+        pty1, pty2
+    in
+    begin
+      match bop.txt, pty1, pty2 with
+      | Bop_add, Pty_ureal, Pty_ureal -> Ok Pty_preal
+      | Bop_add, Pty_ureal, Pty_preal -> Ok Pty_preal
+      | Bop_add, Pty_ureal, Pty_real -> Ok Pty_real
+      | Bop_add, Pty_ureal, Pty_fnat _ -> Ok Pty_preal
+      | Bop_add, Pty_ureal, Pty_nat -> Ok Pty_preal
+      | Bop_add, Pty_ureal, Pty_int -> Ok Pty_real
+      | Bop_add, Pty_preal, Pty_preal -> Ok Pty_preal
+      | Bop_add, Pty_preal, Pty_real -> Ok Pty_real
+      | Bop_add, Pty_preal, Pty_fnat _ -> Ok Pty_preal
+      | Bop_add, Pty_preal, Pty_nat -> Ok Pty_preal
+      | Bop_add, Pty_preal, Pty_int -> Ok Pty_real
+      | Bop_add, Pty_real, Pty_real -> Ok Pty_real
+      | Bop_add, Pty_real, Pty_fnat _ -> Ok Pty_real
+      | Bop_add, Pty_real, Pty_nat -> Ok Pty_real
+      | Bop_add, Pty_real, Pty_int -> Ok Pty_real
+      | Bop_add, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n + m))
+      | Bop_add, Pty_fnat _, Pty_nat -> Ok Pty_nat
+      | Bop_add, Pty_fnat _, Pty_int -> Ok Pty_int
+      | Bop_add, Pty_nat, Pty_nat -> Ok Pty_nat
+      | Bop_add, Pty_nat, Pty_int -> Ok Pty_int
+      | Bop_add, Pty_int, Pty_int -> Ok Pty_int
 
-  | Bop_sub, Pty_ureal, Pty_ureal
-  | Bop_sub, Pty_ureal, Pty_preal
-  | Bop_sub, Pty_ureal, Pty_real
-  | Bop_sub, Pty_ureal, Pty_fnat _
-  | Bop_sub, Pty_ureal, Pty_nat
-  | Bop_sub, Pty_ureal, Pty_int -> Ok Pty_real
-  | Bop_sub, Pty_preal, Pty_ureal
-  | Bop_sub, Pty_preal, Pty_preal
-  | Bop_sub, Pty_preal, Pty_real
-  | Bop_sub, Pty_preal, Pty_fnat _
-  | Bop_sub, Pty_preal, Pty_nat
-  | Bop_sub, Pty_preal, Pty_int -> Ok Pty_real
-  | Bop_sub, Pty_real, Pty_ureal
-  | Bop_sub, Pty_real, Pty_preal
-  | Bop_sub, Pty_real, Pty_real
-  | Bop_sub, Pty_real, Pty_fnat _
-  | Bop_sub, Pty_real, Pty_nat
-  | Bop_sub, Pty_real, Pty_int -> Ok Pty_real
-  | Bop_sub, Pty_fnat _, Pty_fnat _
-  | Bop_sub, Pty_fnat _, Pty_nat
-  | Bop_sub, Pty_fnat _, Pty_int -> Ok Pty_int
-  | Bop_sub, Pty_fnat _, Pty_ureal
-  | Bop_sub, Pty_fnat _, Pty_preal
-  | Bop_sub, Pty_fnat _, Pty_real -> Ok Pty_real
-  | Bop_sub, Pty_nat, Pty_fnat _
-  | Bop_sub, Pty_nat, Pty_nat
-  | Bop_sub, Pty_nat, Pty_int -> Ok Pty_int
-  | Bop_sub, Pty_nat, Pty_ureal
-  | Bop_sub, Pty_nat, Pty_preal
-  | Bop_sub, Pty_nat, Pty_real -> Ok Pty_real
-  | Bop_sub, Pty_int, Pty_fnat _
-  | Bop_sub, Pty_int, Pty_nat
-  | Bop_sub, Pty_int, Pty_int -> Ok Pty_int
-  | Bop_sub, Pty_int, Pty_ureal
-  | Bop_sub, Pty_int, Pty_preal
-  | Bop_sub, Pty_int, Pty_real -> Ok Pty_real
+      | Bop_mul, Pty_ureal, Pty_ureal -> Ok Pty_ureal
+      | Bop_mul, Pty_ureal, Pty_preal -> Ok Pty_preal
+      | Bop_mul, Pty_ureal, Pty_real -> Ok Pty_real
+      | Bop_mul, Pty_ureal, Pty_fnat n -> if n <= 2 then Ok Pty_ureal else Ok Pty_preal
+      | Bop_mul, Pty_ureal, Pty_nat -> Ok Pty_preal
+      | Bop_mul, Pty_ureal, Pty_int -> Ok Pty_real
+      | Bop_mul, Pty_preal, Pty_preal -> Ok Pty_preal
+      | Bop_mul, Pty_preal, Pty_real -> Ok Pty_real
+      | Bop_mul, Pty_preal, Pty_fnat _ -> Ok Pty_preal
+      | Bop_mul, Pty_preal, Pty_nat -> Ok Pty_preal
+      | Bop_mul, Pty_preal, Pty_int -> Ok Pty_real
+      | Bop_mul, Pty_real, Pty_real -> Ok Pty_real
+      | Bop_mul, Pty_real, Pty_fnat _ -> Ok Pty_real
+      | Bop_mul, Pty_real, Pty_nat -> Ok Pty_real
+      | Bop_mul, Pty_real, Pty_int -> Ok Pty_real
+      | Bop_mul, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n * m))
+      | Bop_mul, Pty_fnat _, Pty_nat -> Ok Pty_nat
+      | Bop_mul, Pty_fnat _, Pty_int -> Ok Pty_int
+      | Bop_mul, Pty_nat, Pty_nat -> Ok Pty_nat
+      | Bop_mul, Pty_nat, Pty_int -> Ok Pty_int
+      | Bop_mul, Pty_int, Pty_int -> Ok Pty_int
 
-  | Bop_mul, Pty_ureal, Pty_ureal -> Ok Pty_ureal
-  | Bop_mul, Pty_ureal, Pty_preal -> Ok Pty_preal
-  | Bop_mul, Pty_ureal, Pty_real -> Ok Pty_real
-  | Bop_mul, Pty_ureal, Pty_fnat n when n <= 2 -> Ok Pty_ureal
-  | Bop_mul, Pty_ureal, Pty_fnat _
-  | Bop_mul, Pty_ureal, Pty_nat -> Ok Pty_preal
-  | Bop_mul, Pty_ureal, Pty_int -> Ok Pty_real
-  | Bop_mul, Pty_preal, Pty_ureal
-  | Bop_mul, Pty_preal, Pty_preal -> Ok Pty_preal
-  | Bop_mul, Pty_preal, Pty_real -> Ok Pty_real
-  | Bop_mul, Pty_preal, Pty_fnat _
-  | Bop_mul, Pty_preal, Pty_nat -> Ok Pty_preal
-  | Bop_mul, Pty_preal, Pty_int -> Ok Pty_real
-  | Bop_mul, Pty_real, Pty_ureal
-  | Bop_mul, Pty_real, Pty_preal
-  | Bop_mul, Pty_real, Pty_real
-  | Bop_mul, Pty_real, Pty_fnat _
-  | Bop_mul, Pty_real, Pty_nat
-  | Bop_mul, Pty_real, Pty_int -> Ok Pty_real
-  | Bop_mul, Pty_fnat n, Pty_fnat m -> Ok (Pty_fnat (n * m))
-  | Bop_mul, Pty_fnat _, Pty_nat -> Ok Pty_nat
-  | Bop_mul, Pty_fnat _, Pty_int -> Ok Pty_int
-  | Bop_mul, Pty_fnat n, Pty_ureal when n <= 2 -> Ok Pty_ureal
-  | Bop_mul, Pty_fnat _, Pty_ureal
-  | Bop_mul, Pty_fnat _, Pty_preal -> Ok Pty_preal
-  | Bop_mul, Pty_fnat _, Pty_real -> Ok Pty_real
-  | Bop_mul, Pty_nat, Pty_fnat _
-  | Bop_mul, Pty_nat, Pty_nat -> Ok Pty_nat
-  | Bop_mul, Pty_nat, Pty_int -> Ok Pty_int
-  | Bop_mul, Pty_nat, Pty_ureal
-  | Bop_mul, Pty_nat, Pty_preal -> Ok Pty_preal
-  | Bop_mul, Pty_nat, Pty_real -> Ok Pty_real
-  | Bop_mul, Pty_int, Pty_fnat _
-  | Bop_mul, Pty_int, Pty_nat
-  | Bop_mul, Pty_int, Pty_int -> Ok Pty_int
-  | Bop_mul, Pty_int, Pty_ureal
-  | Bop_mul, Pty_int, Pty_preal
-  | Bop_mul, Pty_int, Pty_real -> Ok Pty_real
+      | Bop_eq, pty1, pty2
+      | Bop_ne, pty1, pty2 when Bool.(is_prim_numeric pty1 = is_prim_numeric pty2) -> Ok Pty_bool
 
-  | Bop_div, Pty_ureal, Pty_ureal
-  | Bop_div, Pty_ureal, Pty_preal -> Ok Pty_preal
-  | Bop_div, Pty_ureal, Pty_real -> Ok Pty_real
-  | Bop_div, Pty_ureal, Pty_fnat _
-  | Bop_div, Pty_ureal, Pty_nat -> Ok Pty_ureal
-  | Bop_div, Pty_ureal, Pty_int -> Ok Pty_real
-  | Bop_div, Pty_preal, Pty_ureal
-  | Bop_div, Pty_preal, Pty_preal -> Ok Pty_preal
-  | Bop_div, Pty_preal, Pty_real -> Ok Pty_real
-  | Bop_div, Pty_preal, Pty_fnat _
-  | Bop_div, Pty_preal, Pty_nat -> Ok Pty_preal
-  | Bop_div, Pty_preal, Pty_int -> Ok Pty_real
-  | Bop_div, Pty_real, Pty_ureal
-  | Bop_div, Pty_real, Pty_preal
-  | Bop_div, Pty_real, Pty_real -> Ok Pty_real
-  | Bop_div, Pty_real, Pty_fnat _
-  | Bop_div, Pty_real, Pty_nat
-  | Bop_div, Pty_real, Pty_int -> Ok Pty_real
+      | Bop_lt, pty1, pty2
+      | Bop_le, pty1, pty2
+      | Bop_gt, pty1, pty2
+      | Bop_ge, pty1, pty2 when is_prim_numeric pty1 && is_prim_numeric pty2 -> Ok Pty_bool
 
-  | Bop_eq, pty1, pty2
-  | Bop_ne, pty1, pty2 when is_prim_subtype pty1 pty2 || is_prim_subtype pty2 pty1 -> Ok Pty_bool
+      | Bop_and, Pty_bool, Pty_bool
+      | Bop_or, Pty_bool, Pty_bool -> Ok Pty_bool
 
-  | Bop_lt, pty1, pty2
-  | Bop_le, pty1, pty2
-  | Bop_gt, pty1, pty2
-  | Bop_ge, pty1, pty2 when is_prim_numeric pty1 && (is_prim_subtype pty1 pty2 || is_prim_subtype pty2 pty1) -> Ok Pty_bool
-
-  | Bop_and, Pty_bool, Pty_bool
-  | Bop_or, Pty_bool, Pty_bool -> Ok Pty_bool
-
-  | _ -> Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
+      | _ -> Or_error.of_exn (Type_error ("mismatched operand types", bop.loc))
+    end
 
 let tycheck_bop bop arg1 arg2 =
   match arg1, arg2 with
@@ -315,10 +288,11 @@ let tycheck_bop bop arg1 arg2 =
     let%bind res = tycheck_bop_prim bop pty1 pty2 in
     Ok (Btyv_prim res)
   | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when equal_shape dims1 dims2 ->
-    let%bind res = tycheck_bop_prim bop pty1 pty2 in
-    Ok (Btyv_tensor (res, dims1))
+    let%bind pty = tycheck_bop_prim bop pty1 pty2 in
+    Ok (Btyv_tensor (pty, dims1))
   | Btyv_simplex n1, Btyv_simplex n2 when n1 = n2 ->
-    Ok (Btyv_tensor (Pty_preal, [n1]))
+    let%bind pty = tycheck_bop_prim bop Pty_ureal Pty_ureal in
+    Ok (Btyv_tensor (pty, [n1]))
   | Btyv_simplex n1, Btyv_tensor (pty2, dims2) when equal_shape [n1] dims2 ->
     let%bind pty = tycheck_bop_prim bop Pty_ureal pty2 in
     Ok (Btyv_tensor (pty, [n1]))
@@ -342,7 +316,7 @@ let lookup_ctx (libs, cur) lid =
 let update_ctx (libs, cur) ~key ~data =
   (libs, Map.set cur ~key ~data)
 
-let rec dims_of_mexp ~loc chk mexp =
+let rec tycheck_multilayer ~loc chk mexp =
   match mexp with
   | Multi_leaf exp ->
     let%bind tyv = chk exp in
@@ -354,7 +328,7 @@ let rec dims_of_mexp ~loc chk mexp =
   | Multi_internal subs ->
     let%bind res =
       List.fold_result subs ~init:None ~f:(fun acc sub ->
-          let%bind (sub_dims, sub_pty) = dims_of_mexp ~loc chk sub in
+          let%bind (sub_dims, sub_pty) = tycheck_multilayer ~loc chk sub in
           match acc with
           | None -> Ok (Some (sub_dims, sub_pty))
           | Some (dims, pty) ->
@@ -370,25 +344,29 @@ let rec dims_of_mexp ~loc chk mexp =
 
 let rec tycheck_exp ctxt exp =
   match exp.exp_desc with
-  | E_inst (var_name, dims) ->
+  | E_inst (ident, dims) ->
     begin
-      match lookup_ctx ctxt var_name.txt with
+      match lookup_ctx ctxt ident.txt with
       | Some (Ftyv_poly gen_tyv) ->
         begin
           match (gen_tyv dims) with
           | Some tyv -> Ok tyv
-          | None -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident var_name.txt, exp.exp_loc))
+          | None -> Or_error.of_exn (Type_error ("invalid instantiation of " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
         end
-      | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident var_name.txt, exp.exp_loc))
+      | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
     end
-  | E_var var_name ->
+
+  | E_var ident ->
     begin
-      match lookup_ctx ctxt var_name.txt with
+      match lookup_ctx ctxt ident.txt with
       | Some (Ftyv_base tyv) -> Ok tyv
-      | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident var_name.txt, exp.exp_loc))
+      | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
     end
+
   | E_triv -> Ok Btyv_unit
+
   | E_bool _ -> Ok (Btyv_prim Pty_bool)
+
   | E_cond (exp0, exp1, exp2) ->
     let%bind tyv0 = tycheck_exp ctxt exp0 in
     if is_subtype tyv0 (Btyv_prim Pty_bool) then
@@ -397,6 +375,7 @@ let rec tycheck_exp ctxt exp =
       join_type ~loc:exp.exp_loc tyv1 tyv2
     else
       Or_error.of_exn (Type_error ("non-boolean condition type", exp0.exp_loc))
+
   | E_real r ->
     if Float.(r >= 0. && r <= 1.) then
       Ok (Btyv_prim Pty_ureal)
@@ -404,19 +383,23 @@ let rec tycheck_exp ctxt exp =
       Ok (Btyv_prim Pty_preal)
     else
       Ok (Btyv_prim Pty_real)
+
   | E_int n ->
     if n >= 0 then
       Ok (Btyv_prim (Pty_fnat (n + 1)))
     else
       Ok (Btyv_prim Pty_int)
+
   | E_binop (bop, exp1, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
     let%bind tyv2 = tycheck_exp ctxt exp2 in
     tycheck_bop bop tyv1 tyv2
-  | E_abs (var_name, ty, exp0) ->
+
+  | E_abs (name, ty, exp0) ->
     let tyv = eval_ty ty in
-    let%bind tyv0 = tycheck_exp (update_ctx ctxt ~key:var_name.txt ~data:tyv) exp0 in
+    let%bind tyv0 = tycheck_exp (update_ctx ctxt ~key:name.txt ~data:tyv) exp0 in
     Ok (Btyv_arrow (tyv, tyv0))
+
   | E_app (exp1, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
     let%bind tyv2 = tycheck_exp ctxt exp2 in
@@ -428,15 +411,18 @@ let rec tycheck_exp ctxt exp =
         else
           Or_error.of_exn (Type_error ("mismatched argument types", exp2.exp_loc))
       | _ ->
-        Or_error.of_exn (Type_error ("non-arrow function type", exp.exp_loc))
+        Or_error.of_exn (Type_error ("non-arrow function type", exp1.exp_loc))
     end
-  | E_let (exp1, var_name, exp2) ->
+
+  | E_let (exp1, name, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
-    let ctxt' = update_ctx ctxt ~key:var_name.txt ~data:tyv1 in
+    let ctxt' = update_ctx ctxt ~key:name.txt ~data:tyv1 in
     tycheck_exp ctxt' exp2
+
   | E_dist dist ->
     let%bind tyv = tycheck_dist ~loc:exp.exp_loc ctxt dist in
     Ok (Btyv_dist tyv)
+
   | E_tensor exp0 ->
     let%bind tyv0 = tycheck_exp ctxt exp0 in
     begin
@@ -444,9 +430,10 @@ let rec tycheck_exp ctxt exp =
       | Btyv_prim pty -> Ok (Btyv_tensor (pty, []))
       | _ -> Or_error.of_exn (Type_error ("non-primitive element type", exp0.exp_loc))
     end
+
   | E_stack mexps ->
     let mexp = Multi_internal mexps in
-    let%bind (dims, pty) = dims_of_mexp ~loc:exp.exp_loc (tycheck_exp ctxt) mexp in
+    let%bind (dims, pty) = tycheck_multilayer ~loc:exp.exp_loc (tycheck_exp ctxt) mexp in
     if not (is_prim_numeric pty) then
       Or_error.of_exn (Type_error ("non-numeric element type", exp.exp_loc))
     else if List.length dims = 1 && (
@@ -456,46 +443,51 @@ let rec tycheck_exp ctxt exp =
                 match mexp with
                 | Multi_leaf { exp_desc = E_real r; _ } when Float.(r >= 0.) -> Ok Float.(acc + r)
                 | Multi_leaf { exp_desc = E_int n; _ } when n >= 0 -> Ok Float.(acc + of_int n)
-                | _ -> Or_error.error_string ""
+                | _ -> Error ()
               )
         in
         match prob with
-        | Error _ -> false
-        | Ok prob -> Float.(abs (prob - 1.) < 1e-12)
+        | Error () -> false
+        | Ok prob -> Float.(abs (prob - 1.) < 1e-8)
       ) then
       Ok (Btyv_simplex (List.hd_exn dims))
     else
       Ok (Btyv_tensor (pty, dims))
+
   | E_index (base_exp, index_exps) ->
     let%bind base_tyv = tycheck_exp ctxt base_exp in
     begin
-      match base_tyv with
-      | Btyv_tensor (pty, dims) ->
-        if List.length dims <> List.length index_exps then
-          Or_error.of_exn (Type_error ("mismatched dimension", exp.exp_loc))
-        else
-          let%bind () = List.fold_result (List.zip_exn dims index_exps) ~init:() ~f:(fun () (dim, index_exp) ->
-              let%bind index_tyv = tycheck_exp ctxt index_exp in
-              match index_tyv with
-              | Btyv_prim pty when is_prim_subtype pty (Pty_fnat dim) ->
-                Ok ()
-              | _ ->
-                Or_error.of_exn (Type_error ("invalid index", index_exp.exp_loc))
-            )
-          in
-          Ok (Btyv_prim pty)
-      | _ ->
-        Or_error.of_exn (Type_error ("not indexable", base_exp.exp_loc))
+      let%bind (pty, dims) =
+        match base_tyv with
+        | Btyv_tensor (pty, dims) -> Ok (pty, dims)
+        | Btyv_simplex n -> Ok (Pty_ureal, [n])
+        | _ -> Or_error.of_exn (Type_error ("not indexable", base_exp.exp_loc))
+      in
+      if List.length dims <> List.length index_exps then
+        Or_error.of_exn (Type_error ("mismatched dimension", exp.exp_loc))
+      else
+        let%bind () = List.fold_result (List.zip_exn dims index_exps) ~init:() ~f:(fun () (dim, index_exp) ->
+            let%bind index_tyv = tycheck_exp ctxt index_exp in
+            match index_tyv with
+            | Btyv_prim pty when is_prim_subtype pty (Pty_fnat dim) ->
+              Ok ()
+            | _ ->
+              Or_error.of_exn (Type_error ("invalid index", index_exp.exp_loc))
+          )
+        in
+        Ok (Btyv_prim pty)
     end
+
   | E_tuple exps ->
-    let%bind tyvs = List.fold_result exps
+    let%bind tyvs = Utils.fold_right_result exps
         ~init:[]
-        ~f:(fun acc exp ->
-            let%bind tyv = tycheck_exp ctxt exp in
-            Ok (tyv :: acc)
+        ~f:(fun exp0 acc ->
+            let%bind tyv0 = tycheck_exp ctxt exp0 in
+            Ok (tyv0 :: acc)
           )
     in
-    Ok (Btyv_product (List.rev tyvs))
+    Ok (Btyv_product tyvs)
+
   | E_field (exp0, field) ->
     let%bind tyv0 = tycheck_exp ctxt exp0 in
     begin
@@ -606,20 +598,20 @@ let rec eval_sty sty =
   | Sty_imply (ty1, sty2) -> Styv_imply (eval_ty ty1, eval_sty sty2)
   | Sty_ichoice (sty1, sty2) -> Styv_ichoice (eval_sty sty1, eval_sty sty2)
   | Sty_echoice (sty1, sty2) -> Styv_echoice (eval_sty sty1, eval_sty sty2)
-  | Sty_var (type_name, None) -> Styv_var (type_name.txt, Styv_one)
-  | Sty_var (type_name, Some sty0) -> Styv_var (type_name.txt, eval_sty sty0)
+  | Sty_var (ident, None) -> Styv_var (ident.txt, Styv_one)
+  | Sty_var (ident, Some sty0) -> Styv_var (ident.txt, eval_sty sty0)
 
 let collect_sess_tys prog =
   Hashtbl.of_alist_or_error (module String) (List.filter_map prog ~f:(fun top ->
       match top with
       | Top_proc _ -> None
-      | Top_sess (type_name, sty) -> Some (type_name.txt, Option.map ~f:eval_sty sty)
+      | Top_sess (name, sty) -> Some (name.txt, Option.map ~f:eval_sty sty)
       | Top_func _ -> None
     ))
 
 let eval_proc_sig psig =
-  { psigv_theta_tys = List.map psig.psig_theta_tys ~f:(fun (var_name, pty) -> (var_name.txt, eval_ty pty))
-  ; psigv_param_tys = List.map psig.psig_param_tys ~f:(fun (var_name, ty) -> (var_name.txt, eval_ty ty))
+  { psigv_theta_tys = List.map psig.psig_theta_tys ~f:(fun (name, pty) -> (name.txt, eval_ty pty))
+  ; psigv_param_tys = List.map psig.psig_param_tys ~f:(fun (name, ty) -> (name.txt, eval_ty ty))
   ; psigv_ret_ty = eval_ty psig.psig_ret_ty
   ; psigv_sess_left = Option.map psig.psig_sess_left ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
   ; psigv_sess_right = Option.map psig.psig_sess_right ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
@@ -629,7 +621,7 @@ let collect_proc_sigs prog =
   String.Map.of_alist_or_error (List.filter_map prog ~f:(fun top ->
       match top with
       | Top_sess _ -> None
-      | Top_proc (proc_name, { proc_sig; _ }) -> Some (proc_name.txt, eval_proc_sig proc_sig)
+      | Top_proc (name, { proc_sig; _ }) -> Some (name.txt, eval_proc_sig proc_sig)
       | Top_func _ -> None
     ))
 
@@ -638,7 +630,7 @@ let collect_func_sigs prog =
       match top with
       | Top_sess _ -> None
       | Top_proc _ -> None
-      | Top_func (func_name, { func_param_tys ; func_ret_ty; _ }) -> Some (func_name.txt, Btyv_arrow (
+      | Top_func (name, { func_param_tys ; func_ret_ty; _ }) -> Some (name.txt, Btyv_arrow (
           (match func_param_tys with
            | [] -> Btyv_unit
            | [(_, ty)] -> eval_ty ty
@@ -652,23 +644,25 @@ let tycheck_cmd psig_ctxt =
     match cmd.cmd_desc with
     | M_ret exp ->
       tycheck_exp ctxt exp
-    | M_bnd (cmd1, var_name, cmd2) ->
+
+    | M_bnd (cmd1, name_opt, cmd2) ->
       let%bind tyv1 = forward ctxt cmd1 in
-      let ctxt' = match var_name with
+      let ctxt' = match name_opt with
         | None -> ctxt
-        | Some var_name ->
-          update_ctx ctxt ~key:var_name.txt ~data:tyv1
+        | Some name ->
+          update_ctx ctxt ~key:name.txt ~data:tyv1
       in
       forward ctxt' cmd2
-    | M_call (proc_name, exps) ->
+
+    | M_call (name, exps) ->
       begin
-        match Map.find psig_ctxt proc_name.txt with
-        | None -> Or_error.of_exn (Type_error ("unknown procedure " ^ proc_name.txt, proc_name.loc))
+        match Map.find psig_ctxt name.txt with
+        | None -> Or_error.of_exn (Type_error ("unknown procedure " ^ name.txt, name.loc))
         | Some psigv ->
           if List.length psigv.psigv_param_tys <> List.length exps then
             Or_error.of_exn (Type_error ("mismatched arity", cmd.cmd_loc))
           else
-            let%bind tyvs = List.fold_result (List.rev exps) ~init:[] ~f:(fun acc exp ->
+            let%bind tyvs = Utils.fold_right_result exps ~init:[] ~f:(fun exp acc ->
                 let%bind tyv = tycheck_exp ctxt exp in
                 Ok (tyv :: acc)
               )
@@ -678,6 +672,7 @@ let tycheck_cmd psig_ctxt =
             else
               Ok psigv.psigv_ret_ty
       end
+
     | M_sample_recv (exp, _)
     | M_sample_send (exp, _) ->
       let%bind tyv = tycheck_exp ctxt exp in
@@ -686,22 +681,22 @@ let tycheck_cmd psig_ctxt =
         | Btyv_dist tyv0 -> Ok tyv0
         | _ -> Or_error.of_exn (Type_error ("non-distribution types", exp.exp_loc))
       end
+
     | M_branch_recv (cmd1, cmd2, _) ->
       let%bind tyv1 = forward ctxt cmd1 in
       let%bind tyv2 = forward ctxt cmd2 in
       join_type ~loc:cmd.cmd_loc tyv1 tyv2
+
     | M_branch_send (exp, cmd1, cmd2, _)
     | M_branch_self (exp, cmd1, cmd2) ->
       let%bind tyv = tycheck_exp ctxt exp in
-      begin
-        match tyv with
-        | Btyv_prim Pty_bool ->
-          let%bind tyv1 = forward ctxt cmd1 in
-          let%bind tyv2 = forward ctxt cmd2 in
-          join_type ~loc:cmd.cmd_loc tyv1 tyv2
-        | _ ->
-          Or_error.of_exn (Type_error ("non-boolean condition type", exp.exp_loc))
-      end
+      if is_subtype tyv (Btyv_prim Pty_bool) then
+        let%bind tyv1 = forward ctxt cmd1 in
+        let%bind tyv2 = forward ctxt cmd2 in
+        join_type ~loc:cmd.cmd_loc tyv1 tyv2
+      else
+        Or_error.of_exn (Type_error ("non-boolean condition type", exp.exp_loc))
+
     | M_loop (_, init_exp, bind_name, bind_ty, cmd0) ->
       let%bind tyv = tycheck_exp ctxt init_exp in
       let bind_tyv = eval_ty bind_ty in
@@ -714,6 +709,7 @@ let tycheck_cmd psig_ctxt =
           Or_error.of_exn (Type_error ("inconsistent result type in loop", cmd0.cmd_loc))
       else
         Or_error.of_exn (Type_error ("inconsistent intial value for loop", init_exp.exp_loc))
+
     | M_iter (iter_exp, init_exp, iter_name, bind_name, bind_ty, cmd0) ->
       let%bind iter_tyv = tycheck_exp ctxt iter_exp in
       begin
@@ -736,20 +732,23 @@ let tycheck_cmd psig_ctxt =
           Or_error.of_exn (Type_error ("not iterable", iter_exp.exp_loc))
       end
   in
+
   let rec backward ctxt sess cmd =
     match cmd.cmd_desc with
     | M_ret _ ->
       Ok sess
-    | M_bnd (cmd1, var_name, cmd2) ->
+
+    | M_bnd (cmd1, name_opt, cmd2) ->
       let%bind tyv1 = forward ctxt cmd1 in
       let ctxt' =
-        match var_name with
+        match name_opt with
         | None -> ctxt
-        | Some var_name ->
-          update_ctx ctxt ~key:var_name.txt ~data:tyv1
+        | Some name ->
+          update_ctx ctxt ~key:name.txt ~data:tyv1
       in
       let%bind sess' = backward ctxt' sess cmd2 in
       backward ctxt sess' cmd1
+
     | M_sample_recv (_, channel_name) ->
       let%bind tyv = forward ctxt cmd in
       begin
@@ -760,6 +759,7 @@ let tycheck_cmd psig_ctxt =
         | Some (`Right, sty) ->
           Ok (Map.set sess ~key:channel_name.txt ~data:(`Right, Styv_imply (tyv, sty)))
       end
+
     | M_sample_send (_, channel_name) ->
       let%bind tyv = forward ctxt cmd in
       begin
@@ -770,6 +770,7 @@ let tycheck_cmd psig_ctxt =
         | Some (`Right, sty) ->
           Ok (Map.set sess ~key:channel_name.txt ~data:(`Right, Styv_conj (tyv, sty)))
       end
+
     | M_branch_recv (cmd1, cmd2, channel_name) ->
       let%bind sess1 = backward ctxt sess cmd1 in
       let%bind sess2 = backward ctxt sess cmd2 in
@@ -788,6 +789,7 @@ let tycheck_cmd psig_ctxt =
                   raise (Type_error ("mismatched sessions", cmd.cmd_loc))
             )
         )
+
     | M_branch_send (_, cmd1, cmd2, channel_name) ->
       let%bind sess1 = backward ctxt sess cmd1 in
       let%bind sess2 = backward ctxt sess cmd2 in
@@ -806,6 +808,7 @@ let tycheck_cmd psig_ctxt =
                   raise (Type_error ("mismatched sessions", cmd.cmd_loc))
             )
         )
+
     | M_branch_self (_, cmd1, cmd2) ->
       let%bind sess1 = backward ctxt sess cmd1 in
       let%bind sess2 = backward ctxt sess cmd2 in
@@ -820,10 +823,11 @@ let tycheck_cmd psig_ctxt =
                   raise (Type_error ("mismatched sessions", cmd.cmd_loc))
             )
         )
-    | M_call (proc_name, _) ->
+
+    | M_call (name, _) ->
       begin
-        match Map.find psig_ctxt proc_name.txt with
-        | None -> Or_error.of_exn (Type_error ("unknown procedure " ^ proc_name.txt, proc_name.loc))
+        match Map.find psig_ctxt name.txt with
+        | None -> Or_error.of_exn (Type_error ("unknown procedure " ^ name.txt, name.loc))
         | Some psigv ->
           let%bind sess0 = String.Map.of_alist_or_error
               (List.append (Option.to_list psigv.psigv_sess_left) (Option.to_list psigv.psigv_sess_right)) in
@@ -839,11 +843,13 @@ let tycheck_cmd psig_ctxt =
                   )
               )
       end
+
     | M_loop (n, _, bind_name, bind_ty, cmd0) ->
       let bind_tyv = eval_ty bind_ty in
       let ctxt' = update_ctx ctxt ~key:bind_name.txt ~data:bind_tyv in
       List.fold_result (List.init n ~f:(fun _ -> ())) ~init:sess
         ~f:(fun acc () -> backward ctxt' acc cmd0)
+
     | M_iter (iter_exp, _, iter_name, bind_name, bind_ty, cmd0) ->
       let%bind iter_tyv = tycheck_exp ctxt iter_exp in
       begin
@@ -859,6 +865,7 @@ let tycheck_cmd psig_ctxt =
           Or_error.of_exn (Type_error ("not iterable", iter_exp.exp_loc))
       end
   in
+
   fun ctxt sess_left sess_right cmd ->
     let%bind tyv = forward ctxt cmd in
     let sess_left = Option.map sess_left ~f:(fun (k, v) -> (k, (`Left, v))) in
@@ -867,8 +874,7 @@ let tycheck_cmd psig_ctxt =
     let%bind sess' = backward ctxt sess cmd in
     Ok (tyv,
         Option.map sess_left ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)),
-        Option.map sess_right ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty))
-       )
+        Option.map sess_right ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)))
 
 let prelude_ctxt = String.Map.of_alist_exn [
     "T", Libtensor.prelude;
@@ -878,7 +884,7 @@ let tycheck_func func_ctxt func =
   let%bind ctxt = String.Map.of_alist_or_error
       (List.concat
          [ Map.to_alist func_ctxt
-         ; (List.map func.func_param_tys ~f:(fun (var_name, ty) -> (var_name.txt, eval_ty ty)))]) in
+         ; (List.map func.func_param_tys ~f:(fun (name, ty) -> (name.txt, eval_ty ty)))]) in
   let%bind ret_tyv = tycheck_exp (prelude_ctxt, ctxt) func.func_body in
   let decl_tyv = eval_ty func.func_ret_ty in
   if is_subtype ret_tyv decl_tyv then
@@ -891,12 +897,14 @@ let tycheck_proc sty_ctxt psig_ctxt func_ctxt proc =
   let%bind ctxt = String.Map.of_alist_or_error
       (List.concat
          [ Map.to_alist func_ctxt
-         ; (List.map psigv.psigv_theta_tys ~f:(fun (var_name, pty) -> (var_name, pty)))
+         ; (List.map psigv.psigv_theta_tys ~f:(fun (name, tyv) -> (name, tyv)))
          ; psigv.psigv_param_tys]) in
-  let%bind (tyv, sess_left, sess_right) = tycheck_cmd psig_ctxt (prelude_ctxt, ctxt)
+  let%bind (tyv, sess_left, sess_right) =
+    tycheck_cmd psig_ctxt (prelude_ctxt, ctxt)
       (Option.map psigv.psigv_sess_left ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
       (Option.map psigv.psigv_sess_right ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
-      proc.proc_body in
+      proc.proc_body
+  in
   if not (is_subtype tyv psigv.psigv_ret_ty) then
     Or_error.of_exn (Type_error ("mismatched signature types", proc.proc_loc))
   else if Option.value_map sess_left ~default:false ~f:(fun (_, sty) ->
@@ -941,9 +949,9 @@ let rec verify_sess_ty sty_ctxt sty =
   | Sty_echoice (sty1, sty2) ->
     let%bind () = verify_sess_ty sty_ctxt sty1 in
     verify_sess_ty sty_ctxt sty2
-  | Sty_var (type_name, sty0) ->
-    match Hashtbl.find sty_ctxt type_name.txt with
-    | None -> Or_error.of_exn (Type_error ("unknown type " ^ type_name.txt, type_name.loc))
+  | Sty_var (ident, sty0) ->
+    match Hashtbl.find sty_ctxt ident.txt with
+    | None -> Or_error.of_exn (Type_error ("unknown type " ^ ident.txt, ident.loc))
     | Some _ -> Option.value_map sty0 ~default:(Ok ()) ~f:(verify_sess_ty sty_ctxt)
 
 let tycheck_script psig_ctxt func_ctxt script =
@@ -1007,7 +1015,7 @@ let tycheck_script psig_ctxt func_ctxt script =
 
   Ok ()
 
-let tycheck_prog (prog, script) =
+let tycheck_prog (prog, script_opt) =
   let%bind sty_ctxt = collect_sess_tys prog in
   let%bind psig_ctxt = collect_proc_sigs prog in
   let%bind func_ctxt = collect_func_sigs prog in
@@ -1026,7 +1034,11 @@ let tycheck_prog (prog, script) =
       | Top_func (_, func) -> tycheck_func func_ctxt func
     )
   in
-  tycheck_script psig_ctxt func_ctxt script
+  match script_opt with
+  | Some script ->
+    tycheck_script psig_ctxt func_ctxt script
+  | None ->
+    Ok ()
 
 let () =
   Location.register_error_of_exn

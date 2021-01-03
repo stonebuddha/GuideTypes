@@ -116,7 +116,7 @@ let mkcmd ~loc cmd_desc = {
 %left ASTERISK SLASH
 
 %start implementation
-%type <Ast_types.prog * Infer_types.script> implementation
+%type <Ast_types.prog * Infer_types.script option> implementation
 
 %%
 
@@ -127,7 +127,7 @@ let mkcmd ~loc cmd_desc = {
 %inline mkcmd(symb): symb { mkcmd ~loc:$sloc $1 }
 
 %public implementation:
-  | prog = list(toplevel); script = infer_script; EOF
+  | prog = list(toplevel); script = option(infer_script); EOF
     { prog, script }
 
 long_ident:

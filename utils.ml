@@ -17,3 +17,6 @@ let fold_right_result lst ~f ~init =
       f h res
   in
   inner lst
+
+let bad_implementation msg =
+  Error (Error.of_string ("bad implementation: " ^ msg))

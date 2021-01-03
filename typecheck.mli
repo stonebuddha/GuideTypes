@@ -1,1 +1,1 @@
-val tycheck_prog : Ast_types.prog * Infer_types.script -> unit Core.Or_error.t
+val tycheck_prog : Ast_types.prog * Infer_types.script option -> unit Core.Or_error.t
