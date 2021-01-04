@@ -226,7 +226,19 @@ let rec interp_exp env exp =
       | _ -> bad_impl "interp_exp E_field"
     end
 
-let interp_system proc_defs _func_defs { sys_buffer; sys_model; sys_guide; sys_output_channel; sys_output_filename = _ } =
+let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_output_channel; sys_output_filename = _ } =
+  let func_env = ref String.Map.empty in
+  func_env :=
+    String.Map.map func_defs
+      ~f:(fun (args, body) ->
+          let names, _ = List.unzip args in
+          Val_prim_func (
+            function
+            | Val_triv -> interp_exp (stdlib_env, !func_env) body
+            | Val_tuple values -> interp_exp (stdlib_env, List.fold2_exn names values ~init:!func_env ~f:(fun acc name value -> Map.set acc ~key:name ~data:value)) body
+            | value -> interp_exp (stdlib_env, Map.set !func_env ~key:(List.hd_exn names) ~data:value) body
+          )
+        );
   let qu_for_output = Queue.create () in
   let enqueue ch ev =
     let qu = Map.find_exn sys_buffer ch in
@@ -234,7 +246,6 @@ let interp_system proc_defs _func_defs { sys_buffer; sys_model; sys_guide; sys_o
     if String.(ch = sys_output_channel) then
       Queue.enqueue qu_for_output ev
   in
-
   let is_halt subr =
     let (cmd, cont) = subr.subr_cont in
     match cmd, cont with
@@ -358,7 +369,10 @@ let interp_system proc_defs _func_defs { sys_buffer; sys_model; sys_guide; sys_o
               )
           in
           let (proc_sig, proc_body) = Map.find_exn proc_defs ident.txt in
-          let init_env = String.Map.of_alist_exn (List.zip_exn (List.map proc_sig.psigv_param_tys ~f:(fun (param, _) -> param)) values) in
+          let init_env =
+            List.fold2_exn proc_sig.psigv_param_tys values ~init:(!func_env)
+              ~f:(fun acc (param, _) value -> Map.set acc ~key:param ~data:value)
+          in
           begin
             subr.subr_env <- init_env;
             subr.subr_cont <- (Either.first proc_body, cont);
