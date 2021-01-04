@@ -33,7 +33,6 @@ type base_ty = {
 }
 
 and base_ty_desc =
-  | Bty_prim of prim_ty
   | Bty_unit
   | Bty_arrow of base_ty * base_ty
   | Bty_dist of base_ty
@@ -43,7 +42,6 @@ and base_ty_desc =
   | Bty_product of base_ty list
 
 type base_tyv =
-  | Btyv_prim of prim_ty
   | Btyv_unit
   | Btyv_arrow of base_tyv * base_tyv
   | Btyv_dist of base_tyv
@@ -88,7 +86,6 @@ and exp_desc =
   | E_abs of string loc * base_ty * exp
   | E_app of exp * exp
   | E_let of exp * string loc * exp
-  | E_tensor of exp
   | E_stack of exp multilayer list
   | E_index of exp * exp list
   | E_tuple of exp list

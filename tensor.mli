@@ -8,6 +8,8 @@ val mk_b : bool -> t
 
 val bool_get : t -> int list -> bool
 
+val bool_value : t -> bool
+
 val ( <> ) : t -> t -> t
 
 val ( < ) : t -> t -> t
@@ -19,3 +21,7 @@ val ( > ) : t -> t -> t
 val ( >= ) : t -> t -> t
 
 val eye : int -> t
+
+val logical_and : t -> t -> t
+
+val logical_or : t -> t -> t

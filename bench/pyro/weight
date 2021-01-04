@@ -2,12 +2,12 @@ type Latent
 type Observation
 
 proc Model() -> real | lat : Latent | obs : Observation = {
-  weight <- observe{lat}(D.normals[](tensor(8.5); tensor(1)));
-  y <- sample{obs}(D.normals[](weight; tensor(0.75)));
-  return weight.[]
+  weight <- observe{lat}(D.normal(8.5; 1));
+  y <- sample{obs}(D.normal(weight; 0.75));
+  return weight
 }
 
-proc Guide[a: (real; []) tensor; b: (preal; []) tensor]() -> unit | . | lat : Latent = {
-  weight <- sample{lat}(D.normals[](a; b));
+proc Guide[a: real; b: preal]() -> unit | . | lat : Latent = {
+  weight <- sample{lat}(D.normal(a; b));
   return ()
 }

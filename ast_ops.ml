@@ -33,15 +33,16 @@ and print_base_tyv_prod fmt = function
   | tyv -> print_base_tyv_prim fmt tyv
 
 and print_base_tyv_prim fmt = function
-  | Btyv_prim pty ->
-    print_prim_ty fmt pty
   | Btyv_unit ->
     Format.fprintf fmt "unit"
   | Btyv_dist tyv ->
     Format.fprintf fmt "%a dist" print_base_tyv_prim tyv
   | Btyv_tensor (pty, dims) ->
-    Format.fprintf fmt "(%a; [%a]) tensor" print_prim_ty pty
-      (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "; ") (fun fmt n -> Format.fprintf fmt "%d" n)) dims
+    if List.is_empty dims then
+      Format.fprintf fmt "%a" print_prim_ty pty
+    else
+      Format.fprintf fmt "(%a; [%a]) tensor" print_prim_ty pty
+        (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "; ") (fun fmt n -> Format.fprintf fmt "%d" n)) dims
   | Btyv_simplex n ->
     Format.fprintf fmt "simplex[%d]" n
   | Btyv_var name ->

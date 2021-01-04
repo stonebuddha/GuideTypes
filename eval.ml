@@ -27,72 +27,18 @@ let stdlib_env = String.Map.of_alist_exn [
 
 let eval_bop bop value1 value2 =
   match bop.txt, value1, value2 with
-  | Bop_add, Val_int n1, Val_int n2 -> Ok (Val_int (n1 + n2))
-  | Bop_add, Val_int n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 + f2))
-  | Bop_add, Val_real f1, Val_int n2 -> Ok (Val_real Float.(f1 + of_int n2))
-  | Bop_add, Val_real f1, Val_real f2 -> Ok (Val_real Float.(f1 + f2))
   | Bop_add, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 + t2))
-
-  | Bop_sub, Val_int n1, Val_int n2 -> Ok (Val_int (n1 - n2))
-  | Bop_sub, Val_int n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 - f2))
-  | Bop_sub, Val_real f1, Val_int n2 -> Ok (Val_real Float.(f1 - of_int n2))
-  | Bop_sub, Val_real f1, Val_real f2 -> Ok (Val_real Float.(f1 - f2))
   | Bop_sub, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 - t2))
-
-  | Bop_mul, Val_int n1, Val_int n2 -> Ok (Val_int (n1 * n2))
-  | Bop_mul, Val_int n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 * f2))
-  | Bop_mul, Val_real f1, Val_int n2 -> Ok (Val_real Float.(f1 * of_int n2))
-  | Bop_mul, Val_real f1, Val_real f2 -> Ok (Val_real Float.(f1 * f2))
   | Bop_mul, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 * t2))
-
-  | Bop_div, Val_int n1, Val_int n2 -> Ok (Val_real Float.(of_int n1 / of_int n2))
-  | Bop_div, Val_int n1, Val_real f2 -> Ok (Val_real Float.(of_int n1 / f2))
-  | Bop_div, Val_real f1, Val_int n2 -> Ok (Val_real Float.(f1 / of_int n2))
-  | Bop_div, Val_real f1, Val_real f2 -> Ok (Val_real Float.(f1 / f2))
   | Bop_div, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 / t2))
-
-  | Bop_eq, Val_bool b1, Val_bool b2 -> Ok (Val_bool Bool.(b1 = b2))
-  | Bop_eq, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 = n2))
-  | Bop_eq, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 = f2))
-  | Bop_eq, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 = of_int n2))
-  | Bop_eq, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 = f2))
   | Bop_eq, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 = t2))
-
-  | Bop_ne, Val_bool b1, Val_bool b2 -> Ok (Val_bool Bool.(b1 <> b2))
-  | Bop_ne, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 <> n2))
-  | Bop_ne, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 <> f2))
-  | Bop_ne, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 <> of_int n2))
-  | Bop_ne, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 <> f2))
   | Bop_ne, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 <> t2))
-
-  | Bop_lt, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 < n2))
-  | Bop_lt, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 < f2))
-  | Bop_lt, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 < of_int n2))
-  | Bop_lt, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 < f2))
   | Bop_lt, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 < t2))
-
-  | Bop_le, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 <= n2))
-  | Bop_le, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 <= f2))
-  | Bop_le, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 <= of_int n2))
-  | Bop_le, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 <= f2))
   | Bop_le, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 <= t2))
-
-  | Bop_gt, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 > n2))
-  | Bop_gt, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 > f2))
-  | Bop_gt, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 > of_int n2))
-  | Bop_gt, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 > f2))
   | Bop_gt, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 > t2))
-
-  | Bop_ge, Val_int n1, Val_int n2 -> Ok (Val_bool (n1 >= n2))
-  | Bop_ge, Val_int n1, Val_real f2 -> Ok (Val_bool Float.(of_int n1 >= f2))
-  | Bop_ge, Val_real f1, Val_int n2 -> Ok (Val_bool Float.(f1 >= of_int n2))
-  | Bop_ge, Val_real f1, Val_real f2 -> Ok (Val_bool Float.(f1 >= f2))
   | Bop_ge, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(t1 >= t2))
-
-  | Bop_and, Val_bool b1, Val_bool b2 -> Ok (Val_bool (b1 && b2))
-
-  | Bop_or, Val_bool b1, Val_bool b2 -> Ok (Val_bool (b1 || b2))
-
+  | Bop_and, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(logical_and t1 t2))
+  | Bop_or, Val_tensor t1, Val_tensor t2 -> Ok (Val_tensor Tensor.(logical_or t1 t2))
   | _ -> bad_impl "eval_bop"
 
 let rec interp_exp env exp =
@@ -108,20 +54,23 @@ let rec interp_exp env exp =
     Ok Val_triv
 
   | E_bool b ->
-    Ok (Val_bool b)
+    Ok (Val_tensor (Tensor.mk_b b))
 
   | E_real r ->
-    Ok (Val_real r)
+    Ok (Val_tensor (Tensor.mk_f r))
 
   | E_int n ->
-    Ok (Val_int n)
+    Ok (Val_tensor (Tensor.mk_i n))
 
   | E_cond (exp0, exp1, exp2) ->
     let%bind value0 = interp_exp env exp0 in
     begin
       match value0 with
-      | Val_bool true -> interp_exp env exp1
-      | Val_bool false -> interp_exp env exp2
+      | Val_tensor t0 ->
+        if Tensor.bool_value t0 then
+          interp_exp env exp1
+        else
+          interp_exp env exp2
       | _ -> bad_impl "interp_exp E_cond"
     end
 
@@ -148,16 +97,6 @@ let rec interp_exp env exp =
     let%bind value1 = interp_exp env exp1 in
     interp_exp (update_env env ~key:name.txt ~data:value1) exp2
 
-  | E_tensor exp0 ->
-    let%bind value0 = interp_exp env exp0 in
-    begin
-      match value0 with
-      | Val_real r -> Ok (Val_tensor (Tensor.mk_f r))
-      | Val_int n -> Ok (Val_tensor (Tensor.mk_i n))
-      | Val_bool b -> Ok (Val_tensor (Tensor.mk_b b))
-      | _ -> bad_impl "interp_exp E_tensor"
-    end
-
   | E_stack mexps ->
     let mexp = Multi_internal mexps in
     let has_real = ref false in
@@ -166,7 +105,14 @@ let rec interp_exp env exp =
         let%bind value0 = interp_exp env exp0 in
         let () =
           match value0 with
-          | Val_real _ -> has_real := true
+          | Val_tensor t0 ->
+            begin
+              match Tensor.kind t0 with
+              | Torch_core.Kind.(T Half)
+              | Torch_core.Kind.(T Float)
+              | Torch_core.Kind.(T Double) -> has_real := true
+              | _ -> ()
+            end
           | _ -> ()
         in
         Ok (Multi_leaf value0)
@@ -195,8 +141,19 @@ let rec interp_exp env exp =
         | Multi_leaf value0 ->
           begin
             match value0 with
-            | Val_real r -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) r)
-            | Val_int n -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int n))
+            | Val_tensor t0 ->
+              begin
+                match Tensor.kind t0 with
+                | Torch_core.Kind.(T Half)
+                | Torch_core.Kind.(T Float)
+                | Torch_core.Kind.(T Double) -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Tensor.float_value t0))
+                | Torch_core.Kind.(T Uint8)
+                | Torch_core.Kind.(T Int8)
+                | Torch_core.Kind.(T Int16)
+                | Torch_core.Kind.(T Int)
+                | Torch_core.Kind.(T Int64) -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int (Tensor.int_value t0)))
+                | _ -> bad_impl "interp_exp E_stack"
+              end
             | _ -> bad_impl "interp_exp E_stack"
           end
         | Multi_internal subs ->
@@ -214,7 +171,7 @@ let rec interp_exp env exp =
         | Multi_leaf value0 ->
           begin
             match value0 with
-            | Val_int n -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Int32.of_int_exn n))
+            | Val_tensor t0 -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Int32.of_int_exn (Tensor.int_value t0)))
             | _ -> bad_impl "interp_exp E_stack"
           end
         | Multi_internal subs ->
@@ -235,27 +192,14 @@ let rec interp_exp env exp =
         ~f:(fun index_exp acc ->
             let%bind index_value = interp_exp env index_exp in
             match index_value with
-            | Val_int n -> Ok (n :: acc)
+            | Val_tensor index_t -> Ok (Tensor.int_value index_t :: acc)
             | _ -> bad_impl "interp_exp E_index"
           )
     in
     begin
       match base_value with
-      | Val_tensor tensor ->
-        let kind = Tensor.kind tensor in
-        begin
-          match kind with
-          | Torch_core.Kind.(T Half)
-          | Torch_core.Kind.(T Float)
-          | Torch_core.Kind.(T Double) -> Ok (Val_real (Tensor.float_get tensor indexes))
-          | Torch_core.Kind.(T Uint8)
-          | Torch_core.Kind.(T Int8)
-          | Torch_core.Kind.(T Int16)
-          | Torch_core.Kind.(T Int)
-          | Torch_core.Kind.(T Int64) -> Ok (Val_int (Tensor.int_get tensor indexes))
-          | Torch_core.Kind.(T Bool) -> Ok (Val_bool (Tensor.bool_get tensor indexes))
-          | _ -> bad_impl "interp_exp E_index"
-        end
+      | Val_tensor base_t ->
+        Ok (Val_tensor (List.fold_left indexes ~init:base_t ~f:(fun acc index -> Tensor.get acc index)))
       | _ -> bad_impl "interp_exp E_index"
     end
 

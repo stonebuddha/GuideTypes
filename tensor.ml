@@ -28,6 +28,9 @@ let bool_vec values =
 let bool_get t indexes =
   stub_bool_value t (CArray.of_list int indexes |> CArray.start) (List.length indexes)
 
+let bool_value t =
+  stub_bool_value t (from_voidp int null) 0
+
 let mk_f = f
 
 let mk_i v = int_vec [v] |> reshape ~shape:[]
@@ -45,3 +48,7 @@ let ( > ) = Torch_core.Wrapper.Tensor.gt1
 let ( >= ) = Torch_core.Wrapper.Tensor.ge1
 
 let eye n = eye ~n ~options:(Torch_core.Kind.(T Float), Device.Cpu)
+
+let logical_and = Torch_core.Wrapper.Tensor.logical_and
+
+let logical_or = Torch_core.Wrapper.Tensor.logical_or

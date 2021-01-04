@@ -91,7 +91,6 @@ let equal_shape = List.equal Int.equal
 
 let rec is_subtype tyv1 tyv2 =
   match tyv1, tyv2 with
-  | Btyv_prim pty1, Btyv_prim pty2 -> is_prim_subtype pty1 pty2
   | Btyv_unit, Btyv_unit -> true
   | Btyv_dist tyv1', Btyv_dist tyv2' -> equal_base_tyv tyv1' tyv2'
   | Btyv_arrow (tyv11, tyv12), Btyv_arrow (tyv21, tyv22) -> is_subtype tyv21 tyv11 && is_subtype tyv12 tyv22
@@ -106,9 +105,6 @@ let rec is_subtype tyv1 tyv2 =
 
 let rec join_type ~loc tyv1 tyv2 =
   match tyv1, tyv2 with
-  | Btyv_prim pty1, Btyv_prim pty2 ->
-    let%bind pty = join_prim ~loc pty1 pty2 in
-    Ok (Btyv_prim pty)
   | Btyv_unit, Btyv_unit ->
     Ok Btyv_unit
   | Btyv_dist tyv1', Btyv_dist tyv2' when equal_base_tyv tyv1' tyv2' ->
@@ -144,9 +140,6 @@ let rec join_type ~loc tyv1 tyv2 =
 
 and meet_type ~loc tyv1 tyv2 =
   match tyv1, tyv2 with
-  | Btyv_prim pty1, Btyv_prim pty2 ->
-    let%bind pty = meet_prim ~loc pty1 pty2 in
-    Ok (Btyv_prim pty)
   | Btyv_unit, Btyv_unit ->
     Ok Btyv_unit
   | Btyv_dist tyv1', Btyv_dist tyv2' when equal_base_tyv tyv1' tyv2' ->
@@ -182,7 +175,6 @@ and meet_type ~loc tyv1 tyv2 =
 
 let rec eval_ty ty =
   match ty.bty_desc with
-  | Bty_prim pty -> Btyv_prim pty
   | Bty_unit -> Btyv_unit
   | Bty_arrow (ty1, ty2) -> Btyv_arrow (eval_ty ty1, eval_ty ty2)
   | Bty_dist ty0 -> Btyv_dist (eval_ty ty0)
@@ -284,9 +276,6 @@ let tycheck_bop_prim bop pty1 pty2 =
 
 let tycheck_bop bop arg1 arg2 =
   match arg1, arg2 with
-  | Btyv_prim pty1, Btyv_prim pty2 ->
-    let%bind res = tycheck_bop_prim bop pty1 pty2 in
-    Ok (Btyv_prim res)
   | Btyv_tensor (pty1, dims1), Btyv_tensor (pty2, dims2) when equal_shape dims1 dims2 ->
     let%bind pty = tycheck_bop_prim bop pty1 pty2 in
     Ok (Btyv_tensor (pty, dims1))
@@ -322,7 +311,7 @@ let rec tycheck_multilayer ~loc chk mexp =
     let%bind tyv = chk exp in
     begin
       match tyv with
-      | Btyv_prim pty -> Ok ([], pty)
+      | Btyv_tensor (pty, []) -> Ok ([], pty)
       | _ -> Or_error.of_exn (Type_error ("non-primitive element type", loc))
     end
   | Multi_internal subs ->
@@ -360,16 +349,22 @@ let rec tycheck_exp ctxt exp =
     begin
       match lookup_ctx ctxt ident.txt with
       | Some (Ftyv_base tyv) -> Ok tyv
+      | Some (Ftyv_poly gen_tyv) ->
+        begin
+          match gen_tyv [] with
+          | Some tyv -> Ok tyv
+          | None -> Or_error.of_exn (Type_error ("invalid instantiation of " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
+        end
       | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
     end
 
   | E_triv -> Ok Btyv_unit
 
-  | E_bool _ -> Ok (Btyv_prim Pty_bool)
+  | E_bool _ -> Ok (Btyv_tensor (Pty_bool, []))
 
   | E_cond (exp0, exp1, exp2) ->
     let%bind tyv0 = tycheck_exp ctxt exp0 in
-    if is_subtype tyv0 (Btyv_prim Pty_bool) then
+    if is_subtype tyv0 (Btyv_tensor (Pty_bool, [])) then
       let%bind tyv1 = tycheck_exp ctxt exp1 in
       let%bind tyv2 = tycheck_exp ctxt exp2 in
       join_type ~loc:exp.exp_loc tyv1 tyv2
@@ -378,17 +373,17 @@ let rec tycheck_exp ctxt exp =
 
   | E_real r ->
     if Float.(r >= 0. && r <= 1.) then
-      Ok (Btyv_prim Pty_ureal)
+      Ok (Btyv_tensor (Pty_ureal, []))
     else if Float.(r >= 0.) then
-      Ok (Btyv_prim Pty_preal)
+      Ok (Btyv_tensor (Pty_preal, []))
     else
-      Ok (Btyv_prim Pty_real)
+      Ok (Btyv_tensor (Pty_real, []))
 
   | E_int n ->
     if n >= 0 then
-      Ok (Btyv_prim (Pty_fnat (n + 1)))
+      Ok (Btyv_tensor (Pty_fnat (n + 1), []))
     else
-      Ok (Btyv_prim Pty_int)
+      Ok (Btyv_tensor (Pty_int, []))
 
   | E_binop (bop, exp1, exp2) ->
     let%bind tyv1 = tycheck_exp ctxt exp1 in
@@ -418,14 +413,6 @@ let rec tycheck_exp ctxt exp =
     let%bind tyv1 = tycheck_exp ctxt exp1 in
     let ctxt' = update_ctx ctxt ~key:name.txt ~data:tyv1 in
     tycheck_exp ctxt' exp2
-
-  | E_tensor exp0 ->
-    let%bind tyv0 = tycheck_exp ctxt exp0 in
-    begin
-      match tyv0 with
-      | Btyv_prim pty -> Ok (Btyv_tensor (pty, []))
-      | _ -> Or_error.of_exn (Type_error ("non-primitive element type", exp0.exp_loc))
-    end
 
   | E_stack mexps ->
     let mexp = Multi_internal mexps in
@@ -459,19 +446,20 @@ let rec tycheck_exp ctxt exp =
         | Btyv_simplex n -> Ok (Pty_ureal, [n])
         | _ -> Or_error.of_exn (Type_error ("not indexable", base_exp.exp_loc))
       in
-      if List.length dims <> List.length index_exps then
+      if List.length dims < List.length index_exps then
         Or_error.of_exn (Type_error ("mismatched dimension", exp.exp_loc))
       else
-        let%bind () = List.fold_result (List.zip_exn dims index_exps) ~init:() ~f:(fun () (dim, index_exp) ->
+        let mat_dims, res_dims = List.split_n dims (List.length index_exps) in
+        let%bind () = List.fold_result (List.zip_exn mat_dims index_exps) ~init:() ~f:(fun () (dim, index_exp) ->
             let%bind index_tyv = tycheck_exp ctxt index_exp in
             match index_tyv with
-            | Btyv_prim pty when is_prim_subtype pty (Pty_fnat dim) ->
+            | Btyv_tensor (pty, []) when is_prim_subtype pty (Pty_fnat dim) ->
               Ok ()
             | _ ->
               Or_error.of_exn (Type_error ("invalid index", index_exp.exp_loc))
           )
         in
-        Ok (Btyv_prim pty)
+        Ok (Btyv_tensor (pty, res_dims))
     end
 
   | E_tuple exps ->
@@ -596,7 +584,7 @@ let tycheck_cmd psig_ctxt =
     | M_branch_send (exp, cmd1, cmd2, _)
     | M_branch_self (exp, cmd1, cmd2) ->
       let%bind tyv = tycheck_exp ctxt exp in
-      if is_subtype tyv (Btyv_prim Pty_bool) then
+      if is_subtype tyv (Btyv_tensor (Pty_bool, [])) then
         let%bind tyv1 = forward ctxt cmd1 in
         let%bind tyv2 = forward ctxt cmd2 in
         join_type ~loc:cmd.cmd_loc tyv1 tyv2

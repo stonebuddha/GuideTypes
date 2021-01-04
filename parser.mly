@@ -202,7 +202,7 @@ base_prim_ty:
     { bty }
   | mkbty(
       pty = prim_ty
-      { Bty_prim pty }
+      { Bty_tensor (pty, []) }
     | UNIT
       { Bty_unit }
     | bty = base_prim_ty; DIST
@@ -322,8 +322,6 @@ prim_exp:
       { E_real (-. r) }
     | LET; var_name = mkloc(LIDENT); EQUAL; exp1 = exp; IN; exp2 = exp; END
       { E_let (exp1, var_name, exp2) }
-    | TENSOR; LPAREN; exp0 = exp; RPAREN
-      { E_tensor exp0 }
     | TENSOR; LPAREN; LBRACKETBAR; mexps = separated_nonempty_list(SEMI, tensor); BARRBRACKET; RPAREN
       { E_stack mexps }
     | base_exp = prim_exp; DOT; LBRACKET; index_exps = separated_list(SEMI, exp); RBRACKET

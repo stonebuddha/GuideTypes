@@ -10,10 +10,10 @@ proc Model
   _ <- loop[256; ()] (fn (acc: unit) ->
     z_loc <- { return T.zeros[50]() };
     z_scale <- { return T.ones[50]() };
-    z <- observe{lat}(D.normals[50](z_loc; z_scale));
+    z <- observe{lat}(D.normal[50](z_loc; z_scale));
     hidden <- { return T.softplus[400](T.mulmv[400; 50](m_fc1; z) + m_fc1_b) };
     loc_img <- { return T.sigmoid[784](T.mulmv[784; 400](m_fc21; hidden) + m_fc21_b) };
-    _ <- sample{obs}(D.bers[784](loc_img));
+    _ <- sample{obs}(D.ber[784](loc_img));
     return ());
   return ()
 }
@@ -30,7 +30,7 @@ proc Guide
     hidden <- { return T.softplus[400](T.mulmv[400; 784](g_fc1; x) + g_fc1_b) };
     z_loc <- { return T.mulmv[50; 400](g_fc21; hidden) + g_fc21_b };
     z_scale <- { return T.exp[50](T.mulmv[50; 400](g_fc22; hidden) + g_fc22_b) };
-    _ <- sample{lat}(D.normals[50](z_loc; z_scale));
+    _ <- sample{lat}(D.normal[50](z_loc; z_scale));
     return ());
   return ()
 }
