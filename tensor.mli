@@ -22,6 +22,4 @@ val ( >= ) : t -> t -> t
 
 val eye : int -> t
 
-val logical_and : t -> t -> t
-
-val logical_or : t -> t -> t
+val normal2 : mean:t -> std:t -> t

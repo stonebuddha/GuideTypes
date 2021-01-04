@@ -23,6 +23,7 @@ let update_env (libs, cur) ~key ~data =
 
 let stdlib_env = String.Map.of_alist_exn [
     "T", Libtensor.stdlib;
+    "D", Libdist.stdlib;
   ]
 
 let eval_bop bop value1 value2 =

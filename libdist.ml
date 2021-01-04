@@ -1,5 +1,8 @@
 open Core
 open Ast_types
+open Value_types
+
+let bad_impl = Utils.bad_implementation
 
 (* Type Specs *)
 
@@ -82,3 +85,28 @@ let prelude = String.Map.of_alist_exn [
   ]
 
 (* Library functions *)
+
+let pf_gen1 pf name = Fval_poly
+    (fun _ ->
+       Some (Val_prim_func (function
+           | Val_tensor t -> Ok (Val_dist (pf t))
+           | _ -> bad_impl ("pf_" ^ name)
+         ))
+    )
+
+let pf_gen2 pf name = Fval_poly
+    (fun _ ->
+       Some (Val_prim_func (function
+           | Val_tuple [Val_tensor t0; Val_tensor t1] -> Ok (Val_dist (pf t0 t1))
+           | _ -> bad_impl ("pf_" ^ name)
+         ))
+    )
+
+let pf_ber = pf_gen1 (fun t -> Dist.bernoulli t) "ber"
+
+let pf_normal = pf_gen2 (fun t0 t1 -> Dist.normal t0 t1) "normal"
+
+let stdlib = String.Map.of_alist_exn [
+    "ber", pf_ber;
+    "normal", pf_normal;
+  ]

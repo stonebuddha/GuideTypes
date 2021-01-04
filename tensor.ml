@@ -20,7 +20,7 @@ let stub_free = foreign "at_free" (stub_t @-> returning void)
 let bool_vec values =
   let values_len = List.length values in
   let values = CArray.of_list bool values |> CArray.start in
-  let kind = Torch_core.Kind.T Torch_core.Kind.Bool in
+  let kind = Torch_core.Kind.(T Bool) in
   let t = stub_bool_vec values values_len (Torch_core.Kind.packed_to_int kind) in
   Gc.Expert.add_finalizer (Heap_block.create_exn t) (fun block -> stub_free (Heap_block.value block));
   t
@@ -37,18 +37,18 @@ let mk_i v = int_vec [v] |> reshape ~shape:[]
 
 let mk_b v = bool_vec [v] |> reshape ~shape:[]
 
-let ( <> ) = Torch_core.Wrapper.Tensor.ne1
+let ( <> ) = ne1
 
-let ( < ) = Torch_core.Wrapper.Tensor.lt1
+let ( < ) = lt1
 
-let ( <= ) = Torch_core.Wrapper.Tensor.le1
+let ( <= ) = le1
 
-let ( > ) = Torch_core.Wrapper.Tensor.gt1
+let ( > ) = gt1
 
-let ( >= ) = Torch_core.Wrapper.Tensor.ge1
+let ( >= ) = ge1
 
 let eye n = eye ~n ~options:(Torch_core.Kind.(T Float), Device.Cpu)
 
-let logical_and = Torch_core.Wrapper.Tensor.logical_and
-
-let logical_or = Torch_core.Wrapper.Tensor.logical_or
+let normal2 ~mean ~std =
+  let res = Tensor.copy mean in
+  Tensor.normal_out2 ~out:res ~mean ~std
