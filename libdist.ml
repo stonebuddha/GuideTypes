@@ -106,7 +106,22 @@ let pf_ber = pf_gen1 (fun t -> Dist.bernoulli t) "ber"
 
 let pf_normal = pf_gen2 (fun t0 t1 -> Dist.normal t0 t1) "normal"
 
+let pf_gamma = pf_gen2 (fun t0 t1 -> Dist.gamma t0 t1) "gamma"
+
+let pf_unif = Fval_poly
+    (fun dims ->
+       Some (Val_prim_func (function
+           | Val_triv -> Ok (Val_dist (Dist.unif dims))
+           | _ -> bad_impl "pf_dist"
+         ))
+    )
+
+let pf_beta = pf_gen2 (fun t0 t1 -> Dist.beta t0 t1) "beta"
+
 let stdlib = String.Map.of_alist_exn [
     "ber", pf_ber;
+    "unif", pf_unif;
+    "beta", pf_beta;
+    "gamma", pf_gamma;
     "normal", pf_normal;
   ]

@@ -12,11 +12,11 @@ type trace = event list
 
 type continuation =
   | Cont_stop
-  | Cont_bind of string option * cmd * continuation
+  | Cont_bind of string option * cmd * closure * continuation
 
 type subroutine = {
-  subr_env: closure;
-  subr_cont: cmd * continuation;
+  mutable subr_env: closure;
+  mutable subr_cont: (cmd, value) Either.t * continuation;
   subr_channel_left: string option;
   subr_channel_right: string option;
 }

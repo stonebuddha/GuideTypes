@@ -3,8 +3,6 @@ open Core
 let version = "0.1.0"
 let build_info = "CMU"
 
-module E = Eval
-
 let report_result result =
   Or_error.iter_error result ~f:(fun err ->
       let exn = Error.to_exn err in
@@ -36,6 +34,15 @@ let typecheck prog =
       Typecheck.tycheck_prog prog
     )
 
+let evaluate proc_defs func_defs systems =
+  Utils.wrap_duration "interpreting" (fun () ->
+      List.fold_result systems ~init:() ~f:(fun () system ->
+          let open Or_error.Let_syntax in
+          let%bind () = Eval.interp_system proc_defs func_defs system in
+          Ok ()
+        )
+    )
+
 let cmd_only_parse =
   Command.basic ~summary:"only parse" (
     let open Command.Let_syntax in
@@ -65,10 +72,27 @@ let cmd_type_check =
       report_result result
   )
 
+let cmd_evaluate =
+  Command.basic ~summary:"evaluate" (
+    let open Command.Let_syntax in
+    let%map_open filename = anon ("filename" %: Filename.arg_type)
+    in
+    fun () ->
+      let result =
+        let open Or_error.Let_syntax in
+        let%bind prog = parse_file filename in
+        let%bind (proc_defs, func_defs, systems) = typecheck prog in
+        let%bind () = evaluate proc_defs func_defs systems in
+        Ok ()
+      in
+      report_result result
+  )
+
 let cmd_route =
   Command.group ~summary:"CommInfer" [
     ("only-parse", cmd_only_parse);
     ("type-check", cmd_type_check);
+    ("evaluate", cmd_evaluate);
   ]
 
 let () =

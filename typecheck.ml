@@ -530,13 +530,29 @@ let collect_func_sigs prog =
       match top with
       | Top_sess _ -> None
       | Top_proc _ -> None
-      | Top_func (name, { func_param_tys ; func_ret_ty; _ }) -> Some (name.txt, Btyv_arrow (
+      | Top_func (name, { func_param_tys; func_ret_ty; _ }) -> Some (name.txt, Btyv_arrow (
           (match func_param_tys with
            | [] -> Btyv_unit
            | [(_, ty)] -> eval_ty ty
            | _ -> Btyv_product (List.map func_param_tys ~f:(fun (_, ty) -> eval_ty ty))),
           eval_ty func_ret_ty
         ))
+    ))
+
+let collect_proc_defs prog =
+  String.Map.of_alist_or_error (List.filter_map prog ~f:(fun top ->
+      match top with
+      | Top_sess _ -> None
+      | Top_proc (name, { proc_sig; proc_body; _ }) -> Some (name.txt, (eval_proc_sig proc_sig, proc_body))
+      | Top_func _ -> None
+    ))
+
+let collect_func_defs prog =
+  String.Map.of_alist_or_error (List.filter_map prog ~f:(fun top ->
+      match top with
+      | Top_sess _ -> None
+      | Top_proc _ -> None
+      | Top_func (name, { func_param_tys; func_body; _ }) -> Some (name.txt, (List.map func_param_tys ~f:(fun (param, ty) -> (param.txt, eval_ty ty)), func_body))
     ))
 
 let tycheck_cmd psig_ctxt =
@@ -975,12 +991,12 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
   let systems =
     List.map traces ~f:(fun trace ->
         { sys_buffer = String.Map.of_alist_exn [obs_ch, Queue.of_list trace.txt; lat_ch, Queue.create ()]
-        ; sys_model = { subr_cont = ({ cmd_desc = M_call (model, model_args); cmd_loc = Location.none }, Cont_stop)
+        ; sys_model = { subr_cont = (Either.first { cmd_desc = M_call (model, model_args); cmd_loc = Location.none }, Cont_stop)
                       ; subr_env = String.Map.empty
                       ; subr_channel_left = Some lat_ch
                       ; subr_channel_right = Some obs_ch
                       }
-        ; sys_guide = { subr_cont = ({ cmd_desc = M_call (guide, guide_args); cmd_loc = Location.none }, Cont_stop)
+        ; sys_guide = { subr_cont = (Either.first { cmd_desc = M_call (guide, guide_args); cmd_loc = Location.none }, Cont_stop)
                       ; subr_env = String.Map.empty
                       ; subr_channel_left = None
                       ; subr_channel_right = Some lat_ch
@@ -1012,11 +1028,16 @@ let tycheck_prog (prog, script_opt) =
       | Top_func (_, func) -> tycheck_func func_ctxt func
     )
   in
-  match script_opt with
-  | Some script ->
-    tycheck_script sty_ctxt psig_ctxt func_ctxt script
-  | None ->
-    Ok []
+  let%bind systems =
+    match script_opt with
+    | Some script ->
+      tycheck_script sty_ctxt psig_ctxt func_ctxt script
+    | None ->
+      Ok []
+  in
+  let%bind proc_defs = collect_proc_defs prog in
+  let%bind func_defs = collect_func_defs prog in
+  Ok (proc_defs, func_defs, systems)
 
 let () =
   Location.register_error_of_exn

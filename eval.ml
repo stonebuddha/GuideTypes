@@ -1,9 +1,8 @@
 open Core
 open Ast_types
 open Value_types
+open Trace_types
 open Or_error.Let_syntax
-
-exception Eval_error of string * Location.t
 
 let stdlib_env = String.Map.of_alist_exn [
     "T", Libtensor.stdlib;
@@ -45,7 +44,11 @@ let eval_bop bop value1 value2 =
 let rec interp_exp env exp =
   match exp.exp_desc with
   | E_var ident ->
-    Ok (Value_ops.fval_to_base_exn (Option.value_exn (lookup_env env ident.txt)))
+    begin
+      match Option.value_exn (lookup_env env ident.txt) with
+      | Fval_base value -> Ok value
+      | Fval_poly gen_value -> Ok (Option.value_exn (gen_value []))
+    end
 
   | E_inst (ident, dims) ->
     let func = Value_ops.fval_to_poly_exn (Option.value_exn (lookup_env env ident.txt)) in
@@ -222,3 +225,162 @@ let rec interp_exp env exp =
       | Val_tuple values -> Ok (List.nth_exn values field)
       | _ -> bad_impl "interp_exp E_field"
     end
+
+let interp_system proc_defs _func_defs { sys_buffer; sys_model; sys_guide; sys_output_channel; sys_output_filename = _ } =
+  let qu_for_output = Queue.create () in
+  let enqueue ch ev =
+    let qu = Map.find_exn sys_buffer ch in
+    let () = Queue.enqueue qu ev in
+    if String.(ch = sys_output_channel) then
+      Queue.enqueue qu_for_output ev
+  in
+
+  let is_halt subr =
+    let (cmd, cont) = subr.subr_cont in
+    match cmd, cont with
+    | (Either.Second _, Cont_stop) -> true
+    | _ -> false
+  in
+  let step subr =
+    match subr.subr_cont with
+    | Either.Second _, Cont_stop -> Ok false
+    | Either.Second value, Cont_bind (name_opt, cmd, env0, cont0) ->
+      begin
+        if Option.is_some name_opt then
+          subr.subr_env <- Map.set env0 ~key:(Option.value_exn name_opt) ~data:value;
+        subr.subr_cont <- (Either.first cmd, cont0);
+        Ok true
+      end
+    | Either.First cmd, cont ->
+      begin
+        match cmd.cmd_desc with
+        | M_ret exp ->
+          let%bind value = interp_exp (stdlib_env, subr.subr_env) exp in
+          begin
+            subr.subr_cont <- (Either.second value, cont);
+            Ok true
+          end
+        | M_bnd (cmd1, name_opt, cmd2) ->
+          begin
+            subr.subr_cont <- (Either.first cmd1, Cont_bind (Option.map name_opt ~f:(fun name -> name.txt), cmd2, subr.subr_env, cont));
+            Ok true
+          end
+        | M_branch_self (exp0, cmd1, cmd2) ->
+          let%bind value0 = interp_exp (stdlib_env, subr.subr_env) exp0 in
+          begin
+            match value0 with
+            | Val_tensor t0 ->
+              let next_cmd = if Tensor.bool_value t0 then cmd1 else cmd2 in
+              begin
+                subr.subr_cont <- (Either.first next_cmd, cont);
+                Ok true
+              end
+            | _ -> bad_impl "step M_branch_self"
+          end
+        | M_branch_send (exp0, cmd1, cmd2, channel_name) ->
+          let%bind value0 = interp_exp (stdlib_env, subr.subr_env) exp0 in
+          begin
+            match value0 with
+            | Val_tensor t0 ->
+              let br = Tensor.bool_value t0 in
+              let next_cmd = if br then cmd1 else cmd2 in
+              begin
+                subr.subr_cont <- (Either.first next_cmd, cont);
+                enqueue channel_name.txt
+                  (if Poly.(Some channel_name.txt = subr.subr_channel_left) then Ev_branch_right br else Ev_branch_left br);
+                Ok true
+              end
+            | _ -> bad_impl "step M_branch_send"
+          end
+        | M_branch_recv (cmd1, cmd2, channel_name) ->
+          let qu = Map.find_exn sys_buffer channel_name.txt in
+          begin
+            match Queue.peek qu with
+            | Some (Ev_branch_left br) when Poly.(Some channel_name.txt = subr.subr_channel_left) ->
+              let next_cmd = if br then cmd1 else cmd2 in
+              begin
+                ignore (Queue.dequeue qu : event option);
+                subr.subr_cont <- (Either.first next_cmd, cont);
+                Ok true
+              end
+            | Some (Ev_branch_right br) when Poly.(Some channel_name.txt = subr.subr_channel_right) ->
+              let next_cmd = if br then cmd1 else cmd2 in
+              begin
+                ignore (Queue.dequeue qu : event option);
+                subr.subr_cont <- (Either.first next_cmd, cont);
+                Ok true
+              end
+            | _ -> Ok false
+          end
+        | M_sample_send (exp, channel_name) ->
+          let%bind value = interp_exp (stdlib_env, subr.subr_env) exp in
+          begin
+            match value with
+            | Val_dist dist ->
+              let sample = dist#sample () in
+              begin
+                subr.subr_cont <- (Either.second (Val_tensor sample), cont);
+                enqueue channel_name.txt
+                  (if Poly.(Some channel_name.txt = subr.subr_channel_left) then Ev_tensor_right sample else Ev_tensor_left sample);
+                Ok true
+              end
+            | _ -> bad_impl "step M_sample_send"
+          end
+        | M_sample_recv (exp, channel_name) ->
+          let%bind value = interp_exp (stdlib_env, subr.subr_env) exp in
+          begin
+            match value with
+            | Val_dist _ ->
+              begin
+                let qu = Map.find_exn sys_buffer channel_name.txt in
+                match Queue.peek qu with
+                | Some (Ev_tensor_left t) when Poly.(Some channel_name.txt = subr.subr_channel_left) ->
+                  begin
+                    ignore (Queue.dequeue qu : event option);
+                    subr.subr_cont <- (Either.second (Val_tensor t), cont);
+                    Ok true
+                  end
+                | Some (Ev_tensor_right t) when Poly.(Some channel_name.txt = subr.subr_channel_right) ->
+                  begin
+                    ignore (Queue.dequeue qu : event option);
+                    subr.subr_cont <- (Either.second (Val_tensor t), cont);
+                    Ok true
+                  end
+                | _ -> Ok false
+              end
+            | _ -> bad_impl "step M_sample_recv"
+          end
+        | M_call (ident, exps) ->
+          let%bind values =
+            Utils.fold_right_result exps ~init:[] ~f:(fun exp acc ->
+                let%bind value = interp_exp (stdlib_env, subr.subr_env) exp in
+                Ok (value :: acc)
+              )
+          in
+          let (proc_sig, proc_body) = Map.find_exn proc_defs ident.txt in
+          let init_env = String.Map.of_alist_exn (List.zip_exn (List.map proc_sig.psigv_param_tys ~f:(fun (param, _) -> param)) values) in
+          begin
+            subr.subr_env <- init_env;
+            subr.subr_cont <- (Either.first proc_body, cont);
+            Ok true
+          end
+        | _ -> failwith "TODO"
+      end
+  in
+  let rec eval subr =
+    let%bind proceed = step subr in
+    if proceed then eval subr
+    else Ok ()
+  in
+  let rec loop () =
+    if is_halt sys_model && is_halt sys_guide then
+      Ok ()
+    else
+      let%bind () = eval sys_model in
+      let%bind () = eval sys_guide in
+      loop ()
+  in
+  let%bind () = loop () in
+  let events = Queue.to_list qu_for_output in
+  Format.printf "%a@." Trace_ops.print_trace events;
+  Ok ()

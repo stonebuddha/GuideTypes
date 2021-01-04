@@ -29,6 +29,8 @@ let bernoulli probs : Tensor.t t =
   end
 
 let normal loc scale : Tensor.t t =
+  let loc = Tensor.(to_type loc ~type_:Torch_core.Kind.(T Float)) in
+  let scale = Tensor.to_type scale ~type_:Torch_core.Kind.(T Float) in
   let lazy variance = lazy (Tensor.square scale) in
   let lazy log_scale = lazy (Tensor.log scale) in
   let lazy shift = lazy Float.(log (sqrt (2. * pi))) in
@@ -40,4 +42,56 @@ let normal loc scale : Tensor.t t =
 
     method log_prob t =
       Tensor.((- (square (t - loc))) / (scale variance 2.) - log_scale - f shift)
+  end
+
+let gamma concentration rate : Tensor.t t =
+  let concentration = Tensor.(to_type concentration ~type_:Torch_core.Kind.(T Float)) in
+  let rate = Tensor.(to_type rate ~type_:Torch_core.Kind.(T Float)) in
+  object
+    method sample () =
+      Tensor.no_grad (fun () ->
+          let value = Tensor.(_standard_gamma concentration / rate) in
+          let value_detached = Tensor.detach value in
+          Tensor.clamp_min value_detached ~min:(Torch.Scalar.float 1e-8)
+        )
+
+    method log_prob t =
+      Tensor.(concentration * log rate + (concentration - f 1.) * log t - rate * t - lgamma concentration)
+  end
+
+let unif dims : Tensor.t t =
+  object
+    method sample () =
+      Tensor.no_grad (fun () ->
+          Tensor.rand ~kind:(Torch_core.Kind.(T Float)) dims
+        )
+
+    method log_prob t =
+      let lb = Tensor.(type_as (f 0. <= t) t) in
+      let ub = Tensor.(type_as (f 1. >= t) t) in
+      Tensor.(log (lb * ub))
+  end
+
+let dirichlet concentration : Tensor.t t =
+  object
+    method sample () =
+      Tensor.no_grad (fun () ->
+          Tensor._sample_dirichlet concentration
+        )
+
+    method log_prob t =
+      Tensor.(sum (log t * (concentration - f 1.)) + lgamma (sum concentration) - sum (lgamma concentration))
+  end
+
+let beta concentration1 concentration0 : Tensor.t t =
+  let _dirichlet = dirichlet (Tensor.stack [concentration1; concentration0] ~dim:(-1)) in
+  object
+    method sample () =
+      Tensor.no_grad (fun () ->
+          Tensor.select (_dirichlet#sample ()) ~dim:(-1) ~index:0
+        )
+
+    method log_prob t =
+      let v = Tensor.(stack [t; f 1. - t] ~dim:(-1)) in
+      _dirichlet#log_prob v
   end
