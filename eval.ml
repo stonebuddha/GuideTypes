@@ -5,6 +5,11 @@ open Or_error.Let_syntax
 
 exception Eval_error of string * Location.t
 
+let stdlib_env = String.Map.of_alist_exn [
+    "T", Libtensor.stdlib;
+    "D", Libdist.stdlib;
+  ]
+
 let bad_impl = Utils.bad_implementation
 
 let lookup_env (libs, cur) lid =
@@ -20,11 +25,6 @@ let lookup_env (libs, cur) lid =
 
 let update_env (libs, cur) ~key ~data =
   (libs, Map.set cur ~key ~data)
-
-let stdlib_env = String.Map.of_alist_exn [
-    "T", Libtensor.stdlib;
-    "D", Libdist.stdlib;
-  ]
 
 let eval_bop bop value1 value2 =
   match bop.txt, value1, value2 with

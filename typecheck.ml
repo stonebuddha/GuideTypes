@@ -6,6 +6,11 @@ open Or_error.Let_syntax
 
 exception Type_error of string * Location.t
 
+let prelude_ctxt = String.Map.of_alist_exn [
+    "T", Libtensor.prelude;
+    "D", Libdist.prelude;
+  ]
+
 let join_prim ~loc pty1 pty2 =
   let pty1, pty2 =
     if compare_prim_ty pty1 pty2 > 0 then
@@ -771,10 +776,48 @@ let tycheck_cmd psig_ctxt =
         Option.map sess_left ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)),
         Option.map sess_right ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)))
 
-let prelude_ctxt = String.Map.of_alist_exn [
-    "T", Libtensor.prelude;
-    "D", Libdist.prelude;
-  ]
+let rec subst_sty styv0 = function
+  | Styv_one -> styv0
+  | Styv_conj (tyv, styv) -> Styv_conj (tyv, subst_sty styv0 styv)
+  | Styv_imply (tyv, styv) -> Styv_imply (tyv, subst_sty styv0 styv)
+  | Styv_ichoice (styv1, styv2) -> Styv_ichoice (subst_sty styv0 styv1, subst_sty styv0 styv2)
+  | Styv_echoice (styv1, styv2) -> Styv_echoice (subst_sty styv0 styv1, subst_sty styv0 styv2)
+  | Styv_var (type_id, styv_inst) -> Styv_var (type_id, subst_sty styv0 styv_inst)
+
+let rec tycheck_trace ~loc sty_ctxt tr styv =
+  match styv with
+  | Styv_var (type_id, styv0) ->
+    let styv_def = Hashtbl.find_exn sty_ctxt type_id |> Option.value_exn in
+    tycheck_trace ~loc sty_ctxt tr (subst_sty styv0 styv_def)
+  | Styv_one ->
+    if List.is_empty tr then
+      Ok ()
+    else
+      Or_error.of_exn (Type_error ("invalid trace", loc))
+  | Styv_conj (_, styv0) ->
+    begin
+      match tr with
+      | Ev_tensor_left _ :: tr' -> tycheck_trace ~loc sty_ctxt tr' styv0
+      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
+    end
+  | Styv_imply (_, styv0) ->
+    begin
+      match tr with
+      | Ev_tensor_right _ :: tr' -> tycheck_trace ~loc sty_ctxt tr' styv0
+      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
+    end
+  | Styv_ichoice (styv1, styv2) ->
+    begin
+      match tr with
+      | Ev_branch_left b :: tr' -> tycheck_trace ~loc sty_ctxt tr' (if b then styv1 else styv2)
+      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
+    end
+  | Styv_echoice (styv1, styv2) ->
+    begin
+      match tr with
+      | Ev_branch_right b :: tr' -> tycheck_trace ~loc sty_ctxt tr' (if b then styv1 else styv2)
+      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
+    end
 
 let tycheck_func func_ctxt func =
   let%bind ctxt = String.Map.of_alist_or_error
@@ -850,11 +893,11 @@ let rec verify_sess_ty sty_ctxt sty =
     | None -> Or_error.of_exn (Type_error ("unknown type " ^ ident.txt, ident.loc))
     | Some _ -> Option.value_map sty0 ~default:(Ok ()) ~f:(verify_sess_ty sty_ctxt)
 
-let tycheck_script psig_ctxt func_ctxt script =
+let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
   let (model, model_args) = script.inf_model in
   let (guide, guide_args) = script.inf_guide in
-  let (input_ch, _) = script.inf_input in
-  let (output_ch, _) = script.inf_output in
+  let (input_ch, input_file) = script.inf_input in
+  let (output_ch, output_file) = script.inf_output in
 
   let check_mcall ~loc mpsigv margs =
     if List.length mpsigv.psigv_param_tys <> List.length margs then
@@ -884,7 +927,7 @@ let tycheck_script psig_ctxt func_ctxt script =
       | Some channel_spec -> Ok channel_spec
   in
 
-  let%bind obs_ch, _ =
+  let%bind obs_ch, obs_sty =
     match psigv_model.psigv_sess_left with
     | None -> Or_error.of_exn (Type_error ("model should consume a channel", model.loc))
     | Some (channel_name, channel_sty) ->
@@ -909,7 +952,46 @@ let tycheck_script psig_ctxt func_ctxt script =
       Ok ()
   in
 
-  Ok ()
+  let%bind traces =
+    match Sys.file_exists input_file.txt with
+    | `No | `Unknown -> Or_error.of_exn (Type_error ("input file not found", input_file.loc))
+    | `Yes ->
+      let parse_channel ch =
+        let lexbuf = Lexing.from_channel ch in
+        Location.init lexbuf input_file.txt;
+        Location.input_name := input_file.txt;
+        Location.input_lexbuf := Some lexbuf;
+        Parse.batch_traces lexbuf
+      in
+      In_channel.with_file input_file.txt ~f:parse_channel
+  in
+
+  let%bind () =
+    List.fold_result traces ~init:() ~f:(fun () trace ->
+        tycheck_trace ~loc:trace.loc sty_ctxt trace.txt (Styv_var (obs_sty, Styv_one))
+      )
+  in
+
+  let systems =
+    List.map traces ~f:(fun trace ->
+        { sys_buffer = String.Map.of_alist_exn [obs_ch, Queue.of_list trace.txt; lat_ch, Queue.create ()]
+        ; sys_model = { subr_cont = ({ cmd_desc = M_call (model, model_args); cmd_loc = Location.none }, Cont_stop)
+                      ; subr_env = String.Map.empty
+                      ; subr_channel_left = Some lat_ch
+                      ; subr_channel_right = Some obs_ch
+                      }
+        ; sys_guide = { subr_cont = ({ cmd_desc = M_call (guide, guide_args); cmd_loc = Location.none }, Cont_stop)
+                      ; subr_env = String.Map.empty
+                      ; subr_channel_left = None
+                      ; subr_channel_right = Some lat_ch
+                      }
+        ; sys_output_channel = lat_ch
+        ; sys_output_filename = output_file.txt
+        }
+      )
+  in
+
+  Ok systems
 
 let tycheck_prog (prog, script_opt) =
   let%bind sty_ctxt = collect_sess_tys prog in
@@ -932,52 +1014,9 @@ let tycheck_prog (prog, script_opt) =
   in
   match script_opt with
   | Some script ->
-    tycheck_script psig_ctxt func_ctxt script
+    tycheck_script sty_ctxt psig_ctxt func_ctxt script
   | None ->
-    Ok ()
-
-let rec subst_sty styv0 = function
-  | Styv_one -> styv0
-  | Styv_conj (tyv, styv) -> Styv_conj (tyv, subst_sty styv0 styv)
-  | Styv_imply (tyv, styv) -> Styv_imply (tyv, subst_sty styv0 styv)
-  | Styv_ichoice (styv1, styv2) -> Styv_ichoice (subst_sty styv0 styv1, subst_sty styv0 styv2)
-  | Styv_echoice (styv1, styv2) -> Styv_echoice (subst_sty styv0 styv1, subst_sty styv0 styv2)
-  | Styv_var (type_id, styv_inst) -> Styv_var (type_id, subst_sty styv0 styv_inst)
-
-let rec tycheck_trace ~loc sty_ctxt tr styv =
-  match styv with
-  | Styv_var (type_id, styv0) ->
-    let styv_def = Map.find_exn sty_ctxt type_id in
-    tycheck_trace ~loc sty_ctxt tr (subst_sty styv0 styv_def)
-  | Styv_one ->
-    if List.is_empty tr then
-      Ok ()
-    else
-      Or_error.of_exn (Type_error ("invalid trace", loc))
-  | Styv_conj (_, styv0) ->
-    begin
-      match tr with
-      | Ev_tensor_left _ :: tr' -> tycheck_trace ~loc sty_ctxt tr' styv0
-      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
-    end
-  | Styv_imply (_, styv0) ->
-    begin
-      match tr with
-      | Ev_tensor_right _ :: tr' -> tycheck_trace ~loc sty_ctxt tr' styv0
-      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
-    end
-  | Styv_ichoice (styv1, styv2) ->
-    begin
-      match tr with
-      | Ev_branch_left b :: tr' -> tycheck_trace ~loc sty_ctxt tr' (if b then styv1 else styv2)
-      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
-    end
-  | Styv_echoice (styv1, styv2) ->
-    begin
-      match tr with
-      | Ev_branch_right b :: tr' -> tycheck_trace ~loc sty_ctxt tr' (if b then styv1 else styv2)
-      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
-    end
+    Ok []
 
 let () =
   Location.register_error_of_exn

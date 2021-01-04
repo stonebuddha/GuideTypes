@@ -59,8 +59,8 @@ let cmd_type_check =
       let result =
         let open Or_error.Let_syntax in
         let%bind prog = parse_file filename in
-        let%bind () = typecheck prog in
-        Ok ()
+        let%bind systems = typecheck prog in
+        Ok systems
       in
       report_result result
   )

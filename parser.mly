@@ -110,7 +110,7 @@ let mkcmd ~loc cmd_desc = {
 %type <Ast_types.prog * Infer_types.script option> implementation
 
 %start batch_input
-%type <Trace_types.trace list> batch_input
+%type <Trace_types.trace loc list> batch_input
 
 %%
 
@@ -129,8 +129,11 @@ let mkcmd ~loc cmd_desc = {
     { traces }
 
 single_input:
-  | LBRACKET; events = separated_list(SEMI, event); RBRACKET
-    { events }
+  | mkloc(
+      LBRACKET; events = separated_list(SEMI, event); RBRACKET
+      { events }
+    )
+    { $1 }
 
 event:
   | LPAREN; TRUE; RPAREN
