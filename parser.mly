@@ -1,6 +1,7 @@
 %{
 open Ast_types
 open Infer_types
+open Trace_types
 
 module Or_error = Core.Or_error
 
@@ -108,6 +109,9 @@ let mkcmd ~loc cmd_desc = {
 %start implementation
 %type <Ast_types.prog * Infer_types.script option> implementation
 
+%start batch_input
+%type <Trace_types.trace list> batch_input
+
 %%
 
 %inline mkloc(symb): symb { mkloc $1 (make_loc $sloc) }
@@ -119,6 +123,38 @@ let mkcmd ~loc cmd_desc = {
 %public implementation:
   | prog = list(toplevel); script = option(infer_script); EOF
     { prog, script }
+
+%public batch_input:
+  | traces = list(single_input); EOF
+    { traces }
+
+single_input:
+  | LBRACKET; events = separated_list(SEMI, event); RBRACKET
+    { events }
+
+event:
+  | LPAREN; TRUE; RPAREN
+    { Ev_branch_right true }
+  | LPAREN; FALSE; RPAREN
+    { Ev_branch_right false }
+  | t = lit_tensor
+    { Ev_tensor_left t }
+
+lit_tensor:
+  | TRUE
+    { Tensor.mk_b true }
+  | FALSE
+    { Tensor.mk_b false }
+  | n = INTV
+    { Tensor.mk_i n }
+  | r = FLOATV
+    { Tensor.mk_f r }
+  | MINUS; n = INTV
+    { Tensor.mk_i (- n) }
+  | MINUS; r = FLOATV
+    { Tensor.mk_f (-. r) }
+  | LBRACKETBAR; ts = separated_nonempty_list(SEMI, lit_tensor); BARRBRACKET
+    { Tensor.stack ts ~dim:0 }
 
 long_ident:
   | name = LIDENT

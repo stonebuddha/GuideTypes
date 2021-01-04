@@ -1,6 +1,7 @@
 open Core
 open Ast_types
 open Infer_types
+open Trace_types
 open Or_error.Let_syntax
 
 exception Type_error of string * Location.t
@@ -934,6 +935,49 @@ let tycheck_prog (prog, script_opt) =
     tycheck_script psig_ctxt func_ctxt script
   | None ->
     Ok ()
+
+let rec subst_sty styv0 = function
+  | Styv_one -> styv0
+  | Styv_conj (tyv, styv) -> Styv_conj (tyv, subst_sty styv0 styv)
+  | Styv_imply (tyv, styv) -> Styv_imply (tyv, subst_sty styv0 styv)
+  | Styv_ichoice (styv1, styv2) -> Styv_ichoice (subst_sty styv0 styv1, subst_sty styv0 styv2)
+  | Styv_echoice (styv1, styv2) -> Styv_echoice (subst_sty styv0 styv1, subst_sty styv0 styv2)
+  | Styv_var (type_id, styv_inst) -> Styv_var (type_id, subst_sty styv0 styv_inst)
+
+let rec tycheck_trace ~loc sty_ctxt tr styv =
+  match styv with
+  | Styv_var (type_id, styv0) ->
+    let styv_def = Map.find_exn sty_ctxt type_id in
+    tycheck_trace ~loc sty_ctxt tr (subst_sty styv0 styv_def)
+  | Styv_one ->
+    if List.is_empty tr then
+      Ok ()
+    else
+      Or_error.of_exn (Type_error ("invalid trace", loc))
+  | Styv_conj (_, styv0) ->
+    begin
+      match tr with
+      | Ev_tensor_left _ :: tr' -> tycheck_trace ~loc sty_ctxt tr' styv0
+      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
+    end
+  | Styv_imply (_, styv0) ->
+    begin
+      match tr with
+      | Ev_tensor_right _ :: tr' -> tycheck_trace ~loc sty_ctxt tr' styv0
+      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
+    end
+  | Styv_ichoice (styv1, styv2) ->
+    begin
+      match tr with
+      | Ev_branch_left b :: tr' -> tycheck_trace ~loc sty_ctxt tr' (if b then styv1 else styv2)
+      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
+    end
+  | Styv_echoice (styv1, styv2) ->
+    begin
+      match tr with
+      | Ev_branch_right b :: tr' -> tycheck_trace ~loc sty_ctxt tr' (if b then styv1 else styv2)
+      | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
+    end
 
 let () =
   Location.register_error_of_exn
