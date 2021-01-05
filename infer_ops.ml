@@ -24,10 +24,14 @@ let hp_to_string = function
   | Hp_float f -> invalid_hp f.loc
 
 let construct_algo algo_name hyper_params =
-  let%bind hyper_dict = String.Map.of_alist_or_error hyper_params in
+  let hyper_dict = String.Map.of_alist_reduce ~f:(fun _ latest -> latest) hyper_params in
   match algo_name.txt with
   | "importance" ->
-    let%bind hp_nsamples = Map.find_or_error hyper_dict "nsamples" in
+    let%bind hp_nsamples =
+      match Map.find hyper_dict "nsamples" with
+      | Some hp_nsamples -> Ok hp_nsamples
+      | None -> Or_error.of_exn (Infer_error ("missing spec for number of samples", algo_name.loc))
+    in
     let%bind imp_nsamples = hp_to_int hp_nsamples in
     Ok (Algo_importance { imp_nsamples })
   | _ -> Or_error.of_exn (Infer_error ("unsupported algorithm", algo_name.loc))

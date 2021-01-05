@@ -502,53 +502,74 @@ let rec eval_sty sty =
   | Sty_var (ident, Some sty0) -> Styv_var (ident.txt, eval_sty sty0)
 
 let collect_sess_tys prog =
-  Hashtbl.of_alist_or_error (module String) (List.filter_map prog ~f:(fun top ->
+  List.fold_result prog ~init:(Hashtbl.create (module String)) ~f:(fun acc top ->
       match top with
-      | Top_proc _ -> None
-      | Top_sess (name, sty) -> Some (name.txt, Option.map ~f:eval_sty sty)
-      | Top_func _ -> None
-    ))
+      | Top_proc _ -> Ok acc
+      | Top_sess (name, sty) ->
+        begin
+          match Hashtbl.add acc ~key:name.txt ~data:(Option.map ~f:eval_sty sty) with
+          | `Ok -> Ok acc
+          | `Duplicate -> Or_error.of_exn (Type_error ("duplicate toplevel type identifier", name.loc))
+        end
+      | Top_func _ -> Ok acc
+    )
 
 let eval_proc_sig psig =
-  { psigv_theta_tys = List.map psig.psig_theta_tys ~f:(fun (name, pty) -> (name.txt, eval_ty pty))
-  ; psigv_param_tys = List.map psig.psig_param_tys ~f:(fun (name, ty) -> (name.txt, eval_ty ty))
-  ; psigv_ret_ty = eval_ty psig.psig_ret_ty
-  ; psigv_sess_left = Option.map psig.psig_sess_left ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
-  ; psigv_sess_right = Option.map psig.psig_sess_right ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
-  }
+  let psigv =
+    { psigv_theta_tys = List.map psig.psig_theta_tys ~f:(fun (name, pty) -> (name.txt, eval_ty pty))
+    ; psigv_param_tys = List.map psig.psig_param_tys ~f:(fun (name, ty) -> (name.txt, eval_ty ty))
+    ; psigv_ret_ty = eval_ty psig.psig_ret_ty
+    ; psigv_sess_left = Option.map psig.psig_sess_left ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
+    ; psigv_sess_right = Option.map psig.psig_sess_right ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
+    }
+  in
+  match psigv.psigv_sess_left, psigv.psigv_sess_right with
+  | Some (ch_left, _), Some (ch_right, _) when String.(ch_left = ch_right) ->
+    Or_error.of_exn (Type_error ("left and right channels coincide", (Option.value_exn psig.psig_sess_right |> fst).loc))
+  | _->
+    Ok psigv
 
 let collect_proc_sigs prog =
-  String.Map.of_alist_or_error (List.filter_map prog ~f:(fun top ->
+  List.fold_result prog ~init:String.Map.empty ~f:(fun acc top ->
       match top with
-      | Top_sess _ -> None
-      | Top_proc (name, { proc_sig; _ }) -> Some (name.txt, eval_proc_sig proc_sig)
-      | Top_func _ -> None
-    ))
+      | Top_sess _ -> Ok acc
+      | Top_proc (name, { proc_sig; _ }) ->
+        let%bind proc_sigv = eval_proc_sig proc_sig in
+        begin
+          match Map.add acc ~key:name.txt ~data:proc_sigv with
+          | `Ok acc' -> Ok acc'
+          | `Duplicate -> Or_error.of_exn (Type_error ("duplicate toplevel procedure identifier", name.loc))
+        end
+      | Top_func _ -> Ok acc
+    )
 
 let collect_func_sigs prog =
-  String.Map.of_alist_or_error (List.filter_map prog ~f:(fun top ->
+  List.fold_result prog ~init:String.Map.empty ~f:(fun acc top ->
       match top with
-      | Top_sess _ -> None
-      | Top_proc _ -> None
-      | Top_func (name, { func_param_tys; func_ret_ty; _ }) -> Some (name.txt, Btyv_arrow (
-          (match func_param_tys with
-           | [] -> Btyv_unit
-           | [(_, ty)] -> eval_ty ty
-           | _ -> Btyv_product (List.map func_param_tys ~f:(fun (_, ty) -> eval_ty ty))),
-          eval_ty func_ret_ty
-        ))
-    ))
+      | Top_sess _ -> Ok acc
+      | Top_proc _ -> Ok acc
+      | Top_func (name, { func_param_tys; func_ret_ty; _ }) ->
+        match Map.add acc ~key:name.txt ~data:(Btyv_arrow (
+            (match func_param_tys with
+             | [] -> Btyv_unit
+             | [(_, ty)] -> eval_ty ty
+             | _ -> Btyv_product (List.map func_param_tys ~f:(fun (_, ty) -> eval_ty ty))),
+            eval_ty func_ret_ty
+          )) with
+        | `Ok acc' -> Ok acc'
+        | `Duplicate -> Or_error.of_exn (Type_error ("duplicate toplevel function identifier", name.loc))
+    )
 
-let collect_proc_defs prog =
-  String.Map.of_alist_or_error (List.filter_map prog ~f:(fun top ->
+let collect_proc_defs_exn prog =
+  String.Map.of_alist_exn (List.filter_map prog ~f:(fun top ->
       match top with
       | Top_sess _ -> None
-      | Top_proc (name, { proc_sig; proc_body; _ }) -> Some (name.txt, (eval_proc_sig proc_sig, proc_body))
+      | Top_proc (name, { proc_sig; proc_body; _ }) -> Some (name.txt, (Or_error.ok_exn (eval_proc_sig proc_sig), proc_body))
       | Top_func _ -> None
     ))
 
-let collect_func_defs prog =
-  String.Map.of_alist_or_error (List.filter_map prog ~f:(fun top ->
+let collect_func_defs_exn prog =
+  String.Map.of_alist_exn (List.filter_map prog ~f:(fun top ->
       match top with
       | Top_sess _ -> None
       | Top_proc _ -> None
@@ -745,7 +766,7 @@ let tycheck_cmd psig_ctxt =
         match Map.find psig_ctxt name.txt with
         | None -> Or_error.of_exn (Type_error ("unknown procedure " ^ name.txt, name.loc))
         | Some psigv ->
-          let%bind sess0 = String.Map.of_alist_or_error
+          let sess0 = String.Map.of_alist_exn
               (List.append (Option.to_list psigv.psigv_sess_left) (Option.to_list psigv.psigv_sess_right)) in
           if not (Set.is_subset (Map.key_set sess0) ~of_:(Map.key_set sess)) then
             Or_error.of_exn (Type_error ("mismatched channels", cmd.cmd_loc))
@@ -786,7 +807,7 @@ let tycheck_cmd psig_ctxt =
     let%bind tyv = forward ctxt cmd in
     let sess_left = Option.map sess_left ~f:(fun (k, v) -> (k, (`Left, v))) in
     let sess_right = Option.map sess_right ~f:(fun (k, v) -> (k, (`Right, v))) in
-    let%bind sess = String.Map.of_alist_or_error (List.append (Option.to_list sess_left) (Option.to_list sess_right)) in
+    let sess = String.Map.of_alist_exn (List.append (Option.to_list sess_left) (Option.to_list sess_right)) in
     let%bind sess' = backward ctxt sess cmd in
     Ok (tyv,
         Option.map sess_left ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)),
@@ -836,10 +857,12 @@ let rec tycheck_trace ~loc sty_ctxt tr styv =
     end
 
 let tycheck_func func_ctxt func =
-  let%bind ctxt = String.Map.of_alist_or_error
-      (List.concat
-         [ Map.to_alist func_ctxt
-         ; (List.map func.func_param_tys ~f:(fun (name, ty) -> (name.txt, eval_ty ty)))]) in
+  let%bind ctxt = List.fold_result func.func_param_tys ~init:func_ctxt ~f:(fun acc (name, ty) ->
+      match Map.add acc ~key:name.txt ~data:(eval_ty ty) with
+      | `Ok acc' -> Ok acc'
+      | `Duplicate -> Or_error.of_exn (Type_error ("duplicate identifier", name.loc))
+    )
+  in
   let%bind ret_tyv = tycheck_exp (prelude_ctxt, ctxt) func.func_body in
   let decl_tyv = eval_ty func.func_ret_ty in
   if is_subtype ret_tyv decl_tyv then
@@ -848,12 +871,14 @@ let tycheck_func func_ctxt func =
     Or_error.of_exn (Type_error ("incorrect function return type", func.func_loc))
 
 let tycheck_proc sty_ctxt psig_ctxt func_ctxt proc =
-  let psigv = eval_proc_sig proc.proc_sig in
-  let%bind ctxt = String.Map.of_alist_or_error
-      (List.concat
-         [ Map.to_alist func_ctxt
-         ; (List.map psigv.psigv_theta_tys ~f:(fun (name, tyv) -> (name, tyv)))
-         ; psigv.psigv_param_tys]) in
+  let%bind psigv = eval_proc_sig proc.proc_sig in
+  let%bind ctxt = List.fold_result (List.append (List.map psigv.psigv_theta_tys ~f:(fun (name, tyv) -> (name, tyv))) psigv.psigv_param_tys)
+      ~init:func_ctxt ~f:(fun acc (name, tyv) ->
+          match Map.add acc ~key:name ~data:tyv with
+          | `Ok acc' -> Ok acc'
+          | `Duplicate -> Or_error.of_exn (Type_error ("duplicate identifier", proc.proc_loc))
+        )
+  in
   let%bind (tyv, sess_left, sess_right) =
     tycheck_cmd psig_ctxt (prelude_ctxt, ctxt)
       (Option.map psigv.psigv_sess_left ~f:(fun (channel_id, _) -> (channel_id, Styv_one)))
@@ -929,9 +954,17 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
               Or_error.of_exn (Type_error ("mismatched argument types", exp.exp_loc))
           )
   in
-  let%bind psigv_model = Map.find_or_error psig_ctxt model.txt in
+  let%bind psigv_model =
+    match Map.find psig_ctxt model.txt with
+    | Some psigv_model -> Ok psigv_model
+    | None -> Or_error.of_exn (Type_error ("unknown procedure identifier", model.loc))
+  in
   let%bind () = check_mcall ~loc:model.loc psigv_model model_args in
-  let%bind psigv_guide = Map.find_or_error psig_ctxt guide.txt in
+  let%bind psigv_guide =
+    match Map.find psig_ctxt guide.txt with
+    | Some psigv_guide -> Ok psigv_guide
+    | None -> Or_error.of_exn (Type_error ("unknown procedure identifier", guide.loc))
+  in
   let%bind () = check_mcall ~loc:guide.loc psigv_guide guide_args in
 
   let%bind lat_ch, lat_sty =
@@ -998,7 +1031,7 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
     }
   in
 
-  Ok (Some system_spec)
+  Ok (Some (system_spec, script.inf_algo))
 
 let tycheck_prog (prog, script_opt) =
   let%bind sty_ctxt = collect_sess_tys prog in
@@ -1026,8 +1059,8 @@ let tycheck_prog (prog, script_opt) =
     | None ->
       Ok None
   in
-  let%bind proc_defs = collect_proc_defs prog in
-  let%bind func_defs = collect_func_defs prog in
+  let proc_defs = collect_proc_defs_exn prog in
+  let func_defs = collect_func_defs_exn prog in
   Ok (proc_defs, func_defs, system_spec)
 
 let () =

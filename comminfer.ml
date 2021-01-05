@@ -17,7 +17,7 @@ let parse_file filename =
   Utils.wrap_duration "parsing" (fun () ->
       match Sys.file_exists filename with
       | `No | `Unknown ->
-        Error (Error.of_string "file not found")
+        Or_error.error_string "file not found"
       | `Yes ->
         let parse_channel ch =
           let lexbuf = Lexing.from_channel ch in
@@ -34,11 +34,11 @@ let typecheck prog =
       Typecheck.tycheck_prog prog
     )
 
-let evaluate proc_defs func_defs system_spec =
+let evaluate proc_defs func_defs system_spec_opt =
   Utils.wrap_duration "interpreting" (fun () ->
-      match system_spec with
-      | None -> Ok ()
-      | Some system_spec ->
+      match system_spec_opt with
+      | None -> Or_error.error_string "no infer script"
+      | Some (system_spec, _) ->
         List.fold_result system_spec.Trace_types.sys_spec_input_traces ~init:() ~f:(fun () trace ->
             let open Or_error.Let_syntax in
             let system = Trace_ops.create_system system_spec trace in
@@ -85,8 +85,8 @@ let cmd_evaluate =
       let result =
         let open Or_error.Let_syntax in
         let%bind prog = parse_file filename in
-        let%bind (proc_defs, func_defs, system_spec) = typecheck prog in
-        let%bind () = evaluate proc_defs func_defs system_spec in
+        let%bind (proc_defs, func_defs, system_spec_opt) = typecheck prog in
+        let%bind () = evaluate proc_defs func_defs system_spec_opt in
         Ok ()
       in
       report_result result

@@ -19,4 +19,4 @@ let fold_right_result lst ~f ~init =
   inner lst
 
 let bad_implementation msg =
-  Error (Error.of_string ("bad implementation: " ^ msg))
+  Or_error.error_string ("bad implementation: " ^ msg)
