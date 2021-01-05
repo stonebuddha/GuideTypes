@@ -356,20 +356,22 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
           let%bind value = interp_exp (stdlib_env, subr.subr_env) exp in
           begin
             match value with
-            | Val_dist dist ->
+            | Val_dist lit_dist ->
               if String.(channel_name.txt = sys_input_channel) then
                 let qu = Map.find_exn sys_buffer channel_name.txt in
                 match Queue.dequeue_exn qu with
                 | Ev_tensor_left t
                 | Ev_tensor_right t ->
                   begin
+                    subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + lit_dist#log_prob t);
                     subr.subr_cont <- (Either.second (Val_tensor t), cont);
                     Ok true
                   end
                 | _ -> bad_impl "step M_sample_send"
               else
-                let sample = dist#sample () in
+                let sample = lit_dist#sample () in
                 begin
+                  subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + lit_dist#log_prob sample);
                   subr.subr_cont <- (Either.second (Val_tensor sample), cont);
                   enqueue channel_name.txt
                     (if Poly.(Some channel_name.txt = subr.subr_channel_left) then Ev_tensor_right sample else Ev_tensor_left sample);
@@ -381,19 +383,21 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
           let%bind value = interp_exp (stdlib_env, subr.subr_env) exp in
           begin
             match value with
-            | Val_dist _ ->
+            | Val_dist lit_dist ->
               begin
                 let qu = Map.find_exn sys_buffer channel_name.txt in
                 match Queue.peek qu with
                 | Some (Ev_tensor_left t) when Poly.(Some channel_name.txt = subr.subr_channel_left) ->
                   begin
                     ignore (Queue.dequeue qu : event option);
+                    subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + lit_dist#log_prob t);
                     subr.subr_cont <- (Either.second (Val_tensor t), cont);
                     Ok true
                   end
                 | Some (Ev_tensor_right t) when Poly.(Some channel_name.txt = subr.subr_channel_right) ->
                   begin
                     ignore (Queue.dequeue qu : event option);
+                    subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + lit_dist#log_prob t);
                     subr.subr_cont <- (Either.second (Val_tensor t), cont);
                     Ok true
                   end
@@ -455,4 +459,6 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
   let%bind () = loop () in
   let events = Queue.to_list qu_for_output in
   Format.printf "%a@." Trace_ops.print_trace events;
+  Format.printf "log prob sum (model) = %a@." Trace_ops.print_tensor sys_model.subr_log_prob_sum;
+  Format.printf "log prob sum (guide) = %a@." Trace_ops.print_tensor sys_guide.subr_log_prob_sum;
   Ok ()

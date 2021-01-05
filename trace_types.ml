@@ -17,6 +17,7 @@ type continuation =
   | Cont_iter of Tensor.t list * string * string * cmd * closure * continuation
 
 type subroutine = {
+  mutable subr_log_prob_sum: Tensor.t;
   mutable subr_env: closure;
   mutable subr_cont: (cmd, value) Either.t * continuation;
   subr_channel_left: string option;

@@ -60,12 +60,14 @@ let create_system spec trace =
   let (model_c, model_l, model_r) = spec.sys_spec_model in
   let (guide_c, guide_l, guide_r) = spec.sys_spec_guide in
   { sys_buffer = String.Map.of_alist_exn [spec.sys_spec_input_channel, Queue.of_list trace; spec.sys_spec_output_channel, Queue.create ()]
-  ; sys_model = { subr_env = String.Map.empty
+  ; sys_model = { subr_log_prob_sum = Tensor.f 0.
+                ; subr_env = String.Map.empty
                 ; subr_cont = Either.first model_c, Cont_stop
                 ; subr_channel_left = model_l
                 ; subr_channel_right = model_r
                 }
-  ; sys_guide = { subr_env = String.Map.empty
+  ; sys_guide = { subr_log_prob_sum = Tensor.f 0.
+                ; subr_env = String.Map.empty
                 ; subr_cont = Either.first guide_c, Cont_stop
                 ; subr_channel_left = guide_l
                 ; subr_channel_right = guide_r
