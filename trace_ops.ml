@@ -70,5 +70,6 @@ let create_system spec trace =
                 ; subr_channel_left = guide_l
                 ; subr_channel_right = guide_r
                 }
+  ; sys_input_channel = spec.sys_spec_input_channel
   ; sys_output_channel = spec.sys_spec_output_channel
   }

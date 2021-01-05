@@ -13,6 +13,8 @@ type trace = event list
 type continuation =
   | Cont_stop
   | Cont_bind of string option * cmd * closure * continuation
+  | Cont_loop of int * string * cmd * closure * continuation
+  | Cont_iter of Tensor.t list * string * string * cmd * closure * continuation
 
 type subroutine = {
   mutable subr_env: closure;
@@ -27,6 +29,7 @@ type system = {
   sys_buffer: msg_buffer String.Map.t;
   sys_model: subroutine;
   sys_guide: subroutine;
+  sys_input_channel: string;
   sys_output_channel: string;
 }
 

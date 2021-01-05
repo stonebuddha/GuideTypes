@@ -226,7 +226,7 @@ let rec interp_exp env exp =
       | _ -> bad_impl "interp_exp E_field"
     end
 
-let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_output_channel } =
+let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_input_channel; sys_output_channel } =
   let func_env = ref String.Map.empty in
   func_env :=
     String.Map.map func_defs
@@ -261,6 +261,35 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_ou
           subr.subr_env <- Map.set env0 ~key:(Option.value_exn name_opt) ~data:value;
         subr.subr_cont <- (Either.first cmd, cont0);
         Ok true
+      end
+    | Either.Second value, Cont_loop (niter, bind_name, cmd, env0, cont0) ->
+      if niter <= 0 then
+        begin
+          subr.subr_env <- env0;
+          subr.subr_cont <- (Either.second value, cont0);
+          Ok true
+        end
+      else
+        begin
+          subr.subr_env <- Map.set env0 ~key:bind_name ~data:value;
+          subr.subr_cont <- (Either.first cmd, Cont_loop (niter - 1, bind_name, cmd, env0, cont0));
+          Ok true
+        end
+    | Either.Second value, Cont_iter (tensors, iter_name, bind_name, cmd, env0, cont0) ->
+      begin
+        match tensors with
+        | [] ->
+          begin
+            subr.subr_env <- env0;
+            subr.subr_cont <- (Either.second value, cont0);
+            Ok true
+          end
+        | th :: tt ->
+          begin
+            subr.subr_env <- Map.set (Map.set env0 ~key:iter_name ~data:(Val_tensor th)) ~key:bind_name ~data:value;
+            subr.subr_cont <- (Either.first cmd, Cont_iter (tt, iter_name, bind_name, cmd, env0, cont0));
+            Ok true
+          end
       end
     | Either.First cmd, cont ->
       begin
@@ -328,13 +357,24 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_ou
           begin
             match value with
             | Val_dist dist ->
-              let sample = dist#sample () in
-              begin
-                subr.subr_cont <- (Either.second (Val_tensor sample), cont);
-                enqueue channel_name.txt
-                  (if Poly.(Some channel_name.txt = subr.subr_channel_left) then Ev_tensor_right sample else Ev_tensor_left sample);
-                Ok true
-              end
+              if String.(channel_name.txt = sys_input_channel) then
+                let qu = Map.find_exn sys_buffer channel_name.txt in
+                match Queue.dequeue_exn qu with
+                | Ev_tensor_left t
+                | Ev_tensor_right t ->
+                  begin
+                    subr.subr_cont <- (Either.second (Val_tensor t), cont);
+                    Ok true
+                  end
+                | _ -> bad_impl "step M_sample_send"
+              else
+                let sample = dist#sample () in
+                begin
+                  subr.subr_cont <- (Either.second (Val_tensor sample), cont);
+                  enqueue channel_name.txt
+                    (if Poly.(Some channel_name.txt = subr.subr_channel_left) then Ev_tensor_right sample else Ev_tensor_left sample);
+                  Ok true
+                end
             | _ -> bad_impl "step M_sample_send"
           end
         | M_sample_recv (exp, channel_name) ->
@@ -378,7 +418,25 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_ou
             subr.subr_cont <- (Either.first proc_body, cont);
             Ok true
           end
-        | _ -> failwith "TODO"
+        | M_loop (niter, init_exp, bind_name, _, cmd) ->
+          let%bind init_value = interp_exp (stdlib_env, subr.subr_env) init_exp in
+          begin
+            subr.subr_cont <- (Either.second init_value, Cont_loop (niter, bind_name.txt, cmd, subr.subr_env, cont));
+            Ok true
+          end
+        | M_iter (iter_exp, init_exp, iter_name, bind_name, _, cmd) ->
+          let%bind iter_value = interp_exp (stdlib_env, subr.subr_env) iter_exp in
+          let%bind init_value = interp_exp (stdlib_env, subr.subr_env) init_exp in
+          begin
+            match iter_value with
+            | Val_tensor iter_t ->
+              let ts = Tensor.to_list iter_t in
+              begin
+                subr.subr_cont <- (Either.second init_value, Cont_iter (ts, iter_name.txt, bind_name.txt, cmd, subr.subr_env, cont));
+                Ok true
+              end
+            | _ -> bad_impl "step M_iter"
+          end
       end
   in
   let rec eval subr =

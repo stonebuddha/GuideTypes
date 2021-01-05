@@ -11,3 +11,18 @@ proc Guide[a: real; b: preal]() -> unit | . | lat : Latent = {
   weight <- sample{lat}(D.normal(a; b));
   return ()
 }
+
+proc Proposal() -> unit | . | lat : Latent = {
+  _ <- sample{lat}(D.normal(8.5; 1));
+  return ()
+}
+
+infer {
+  importance {
+    nsamples: 1000;
+  }; # algo
+  Model(); # model
+  Proposal(); # guide
+  obs <- "weight.in"; # input
+  lat <- "weigth.out"; # output
+}
