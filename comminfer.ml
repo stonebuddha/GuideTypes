@@ -34,13 +34,17 @@ let typecheck prog =
       Typecheck.tycheck_prog prog
     )
 
-let evaluate proc_defs func_defs systems =
+let evaluate proc_defs func_defs system_spec =
   Utils.wrap_duration "interpreting" (fun () ->
-      List.fold_result systems ~init:() ~f:(fun () system ->
-          let open Or_error.Let_syntax in
-          let%bind () = Eval.interp_system proc_defs func_defs system in
-          Ok ()
-        )
+      match system_spec with
+      | None -> Ok ()
+      | Some system_spec ->
+        List.fold_result system_spec.Trace_types.sys_spec_input_traces ~init:() ~f:(fun () trace ->
+            let open Or_error.Let_syntax in
+            let system = Trace_ops.create_system system_spec trace in
+            let%bind () = Eval.interp_system proc_defs func_defs system in
+            Ok ()
+          )
     )
 
 let cmd_only_parse =
@@ -81,8 +85,8 @@ let cmd_evaluate =
       let result =
         let open Or_error.Let_syntax in
         let%bind prog = parse_file filename in
-        let%bind (proc_defs, func_defs, systems) = typecheck prog in
-        let%bind () = evaluate proc_defs func_defs systems in
+        let%bind (proc_defs, func_defs, system_spec) = typecheck prog in
+        let%bind () = evaluate proc_defs func_defs system_spec in
         Ok ()
       in
       report_result result

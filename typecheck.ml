@@ -988,26 +988,17 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
       )
   in
 
-  let systems =
-    List.map traces ~f:(fun trace ->
-        { sys_buffer = String.Map.of_alist_exn [obs_ch, Queue.of_list trace.txt; lat_ch, Queue.create ()]
-        ; sys_model = { subr_cont = (Either.first { cmd_desc = M_call (model, model_args); cmd_loc = Location.none }, Cont_stop)
-                      ; subr_env = String.Map.empty
-                      ; subr_channel_left = Some lat_ch
-                      ; subr_channel_right = Some obs_ch
-                      }
-        ; sys_guide = { subr_cont = (Either.first { cmd_desc = M_call (guide, guide_args); cmd_loc = Location.none }, Cont_stop)
-                      ; subr_env = String.Map.empty
-                      ; subr_channel_left = None
-                      ; subr_channel_right = Some lat_ch
-                      }
-        ; sys_output_channel = lat_ch
-        ; sys_output_filename = output_file.txt
-        }
-      )
+  let system_spec =
+    { sys_spec_model = { cmd_desc = M_call (model, model_args); cmd_loc = model.loc }, Some lat_ch, Some obs_ch
+    ; sys_spec_guide = { cmd_desc = M_call (guide, guide_args); cmd_loc = guide.loc }, None, Some lat_ch
+    ; sys_spec_input_channel = obs_ch
+    ; sys_spec_input_traces = List.map traces ~f:(fun trace -> trace.txt)
+    ; sys_spec_output_channel = lat_ch
+    ; sys_spec_output_filename = output_file.txt
+    }
   in
 
-  Ok systems
+  Ok (Some system_spec)
 
 let tycheck_prog (prog, script_opt) =
   let%bind sty_ctxt = collect_sess_tys prog in
@@ -1028,16 +1019,16 @@ let tycheck_prog (prog, script_opt) =
       | Top_func (_, func) -> tycheck_func func_ctxt func
     )
   in
-  let%bind systems =
+  let%bind system_spec =
     match script_opt with
     | Some script ->
       tycheck_script sty_ctxt psig_ctxt func_ctxt script
     | None ->
-      Ok []
+      Ok None
   in
   let%bind proc_defs = collect_proc_defs prog in
   let%bind func_defs = collect_func_defs prog in
-  Ok (proc_defs, func_defs, systems)
+  Ok (proc_defs, func_defs, system_spec)
 
 let () =
   Location.register_error_of_exn

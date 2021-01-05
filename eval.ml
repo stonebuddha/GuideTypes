@@ -226,7 +226,7 @@ let rec interp_exp env exp =
       | _ -> bad_impl "interp_exp E_field"
     end
 
-let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_output_channel; sys_output_filename = _ } =
+let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_output_channel } =
   let func_env = ref String.Map.empty in
   func_env :=
     String.Map.map func_defs
