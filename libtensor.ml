@@ -100,6 +100,22 @@ let pf_mulmm = Fval_poly
          ))
     )
 
+let pf_mulmv = Fval_poly
+    (fun _ ->
+       Some (Val_prim_func (function
+           | Val_tuple [Val_tensor t1; Val_tensor t2] -> Ok (Val_tensor (Tensor.mv t1 ~vec:t2))
+           | _ -> bad_impl "pf_mulmv"
+         ))
+    )
+
+let pf_mulvm = Fval_poly
+    (fun _ ->
+       Some (Val_prim_func (function
+           | Val_tuple [Val_tensor t1; Val_tensor t2] -> Ok (Val_tensor (Tensor.mv (Tensor.tr t2) ~vec:t1))
+           | _ -> bad_impl "pf_mulvm"
+         ))
+    )
+
 let pf_softplus = pf_gen1 Tensor.softplus "softplus"
 
 let pf_sigmoid = pf_gen1 Tensor.sigmoid "sigmoid"
@@ -129,8 +145,8 @@ let pf_inv = Fval_poly
 let stdlib = String.Map.of_alist_exn [
     "zeros", pf_zeros;
     "ones", pf_ones;
-    "mulmv", pf_mulmm;
-    "mulvm", pf_mulmm;
+    "mulmv", pf_mulmv;
+    "mulvm", pf_mulvm;
     "mulmm", pf_mulmm;
     "softplus", pf_softplus;
     "sigmoid", pf_sigmoid;

@@ -20,3 +20,7 @@ let fold_right_result lst ~f ~init =
 
 let bad_implementation msg =
   Or_error.error_string ("bad implementation: " ^ msg)
+
+let float_eps = 1e-07
+
+let float_tiny = 1e-37

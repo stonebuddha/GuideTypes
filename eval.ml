@@ -116,10 +116,10 @@ let rec interp_exp env exp =
           | Val_tensor t0 ->
             begin
               match Tensor.kind t0 with
-              | Torch_core.Kind.(T Half)
-              | Torch_core.Kind.(T Float)
-              | Torch_core.Kind.(T Double) -> has_real := true
-              | Torch_core.Kind.(T Bool) -> has_bool := true
+              | T Half
+              | T Float
+              | T Double -> has_real := true
+              | T Bool -> has_bool := true
               | _ -> ()
             end
           | _ -> ()
@@ -161,7 +161,7 @@ let rec interp_exp env exp =
             )
       in
       let%bind () = assign_elems [] mvalue in
-      Ok (Val_tensor (Tensor.(to_type (of_bigarray arr) ~type_:Torch_core.Kind.(T Bool))))
+      Ok (Val_tensor (Tensor.(to_type (of_bigarray arr) ~type_:(T Bool))))
     else if !has_real then
       let arr = Bigarray.Genarray.create Bigarray.Float32 Bigarray.C_layout (Array.of_list dims) in
       let rec assign_elems pos = function
@@ -171,14 +171,14 @@ let rec interp_exp env exp =
             | Val_tensor t0 ->
               begin
                 match Tensor.kind t0 with
-                | Torch_core.Kind.(T Half)
-                | Torch_core.Kind.(T Float)
-                | Torch_core.Kind.(T Double) -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Tensor.float_value t0))
-                | Torch_core.Kind.(T Uint8)
-                | Torch_core.Kind.(T Int8)
-                | Torch_core.Kind.(T Int16)
-                | Torch_core.Kind.(T Int)
-                | Torch_core.Kind.(T Int64) -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int (Tensor.int_value t0)))
+                | T Half
+                | T Float
+                | T Double -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Tensor.float_value t0))
+                | T Uint8
+                | T Int8
+                | T Int16
+                | T Int
+                | T Int64 -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int (Tensor.int_value t0)))
                 | _ -> bad_impl "interp_exp E_stack"
               end
             | _ -> bad_impl "interp_exp E_stack"

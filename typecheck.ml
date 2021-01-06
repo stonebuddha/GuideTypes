@@ -435,7 +435,7 @@ let rec tycheck_exp ctxt exp =
         in
         match prob with
         | Error () -> false
-        | Ok prob -> Float.(abs (prob - 1.) < 1e-8)
+        | Ok prob -> Float.(abs (prob - 1.) < Utils.float_eps)
       ) then
       Ok (Btyv_simplex (List.hd_exn dims))
     else

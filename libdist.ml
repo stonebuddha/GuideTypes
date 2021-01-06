@@ -29,7 +29,8 @@ let ft_normal = ft_gen [Pty_real; Pty_preal] Pty_real
 let ft_cat = Ftyv_poly (fun dims ->
     match dims with
     | [] -> None
-    | n :: dims' ->
+    | _ ->
+      let dims', n = List.drop_last_exn dims, List.last_exn dims in
       Some (Btyv_arrow (Btyv_tensor (Pty_preal, dims), Btyv_dist (Btyv_tensor (Pty_fnat n, dims'))))
   )
 
@@ -118,10 +119,70 @@ let pf_unif = Fval_poly
 
 let pf_beta = pf_gen2 (fun t0 t1 -> Dist.beta t0 t1) "beta"
 
+let pf_bin = Fval_poly
+    (fun dims ->
+       match dims with
+       | [] -> None
+       | n :: _ ->
+         Some (Val_prim_func (function
+             | Val_tensor t -> Ok (Val_dist (Dist.binomial n t))
+             | _ -> bad_impl "pf_bin"
+           ))
+    )
+
+let pf_cat = Fval_poly
+    (fun dims ->
+       match dims with
+       | [] -> None
+       | _ -> Some (Val_prim_func (function
+           | Val_tensor t -> Ok (Val_dist (Dist.categorical t))
+           | _ -> bad_impl "pf_cat"
+         ))
+    )
+
+let pf_geo = pf_gen1 (fun t -> Dist.geometric t) "geo"
+
+let pf_pois = pf_gen1 (fun t -> Dist.poisson t) "pois"
+
+let pf_dirich = Fval_poly (fun dims ->
+    match dims with
+    | [_] -> Some (Val_prim_func (function
+        | Val_tensor t -> Ok (Val_dist (Dist.dirichlet t))
+        | _ -> bad_impl "pf_dirich"
+      ))
+    | _ -> None
+  )
+
+let pf_disc = Fval_poly
+    (fun dims ->
+       match dims with
+       | [_] -> Some (Val_prim_func (function
+           | Val_tensor t -> Ok (Val_dist (Dist.categorical t))
+           | _ -> bad_impl "pf_disc"
+         ))
+       | _ -> None
+    )
+
+let pf_mvn = Fval_poly (fun dims ->
+    match dims with
+    | [_] -> Some (Val_prim_func (function
+        | Val_tuple [Val_tensor t1; Val_tensor t2] -> Ok (Val_dist (Dist.multivariate_normal t1 t2))
+        | _ -> bad_impl "pf_mvn"
+      ))
+    | _ -> None
+  )
+
 let stdlib = String.Map.of_alist_exn [
     "ber", pf_ber;
     "unif", pf_unif;
     "beta", pf_beta;
     "gamma", pf_gamma;
     "normal", pf_normal;
+    "cat", pf_cat;
+    "disc", pf_disc;
+    "bin", pf_bin;
+    "geo", pf_geo;
+    "pois", pf_pois;
+    "dirich", pf_dirich;
+    "mvn", pf_mvn;
   ]

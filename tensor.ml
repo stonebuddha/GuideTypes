@@ -47,7 +47,7 @@ let ( > ) = gt1
 
 let ( >= ) = ge1
 
-let eye n = eye ~n ~options:(Torch_core.Kind.(T Float), Device.Cpu)
+let eye n = eye ~n ~options:(T Float, Device.Cpu)
 
 let normal2 ~mean ~std =
   let res = Tensor.copy mean in

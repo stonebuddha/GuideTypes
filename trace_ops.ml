@@ -5,15 +5,15 @@ let print_tensor fmt t =
   let dims = Tensor.shape t in
   let kind =
     match Tensor.kind t with
-    | Torch_core.Kind.(T Half)
-    | Torch_core.Kind.(T Float)
-    | Torch_core.Kind.(T Double) -> `Float
-    | Torch_core.Kind.(T Uint8)
-    | Torch_core.Kind.(T Int8)
-    | Torch_core.Kind.(T Int16)
-    | Torch_core.Kind.(T Int)
-    | Torch_core.Kind.(T Int64) -> `Int
-    | Torch_core.Kind.(T Bool) -> `Bool
+    | T Half
+    | T Float
+    | T Double -> `Float
+    | T Uint8
+    | T Int8
+    | T Int16
+    | T Int
+    | T Int64 -> `Int
+    | T Bool -> `Bool
     | _ -> assert false
   in
   let rec aux dims t =
@@ -82,15 +82,15 @@ let rec py_tensor t =
   let dims = Tensor.shape t in
   let kind =
     match Tensor.kind t with
-    | Torch_core.Kind.(T Half)
-    | Torch_core.Kind.(T Float)
-    | Torch_core.Kind.(T Double) -> `Float
-    | Torch_core.Kind.(T Uint8)
-    | Torch_core.Kind.(T Int8)
-    | Torch_core.Kind.(T Int16)
-    | Torch_core.Kind.(T Int)
-    | Torch_core.Kind.(T Int64) -> `Int
-    | Torch_core.Kind.(T Bool) -> `Bool
+    | T Half
+    | T Float
+    | T Double -> `Float
+    | T Uint8
+    | T Int8
+    | T Int16
+    | T Int
+    | T Int64 -> `Int
+    | T Bool -> `Bool
     | _ -> assert false
   in
   match dims with
