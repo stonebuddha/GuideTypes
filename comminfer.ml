@@ -38,13 +38,10 @@ let evaluate proc_defs func_defs system_spec_opt =
   Utils.wrap_duration "interpreting" (fun () ->
       match system_spec_opt with
       | None -> Or_error.error_string "no infer script"
-      | Some (system_spec, _) ->
-        List.fold_result system_spec.Trace_types.sys_spec_input_traces ~init:() ~f:(fun () trace ->
-            let open Or_error.Let_syntax in
-            let system = Trace_ops.create_system system_spec trace in
-            let%bind () = Eval.interp_system proc_defs func_defs system in
-            Ok ()
-          )
+      | Some (system_spec, algo) ->
+        let open Or_error.Let_syntax in
+        let%bind () = Eval.infer_system algo proc_defs func_defs system_spec in
+        Ok ()
     )
 
 let cmd_only_parse =
@@ -100,6 +97,7 @@ let cmd_route =
   ]
 
 let () =
+  Py.initialize ();
   let t1 = Time_now.nanoseconds_since_unix_epoch () |> Time_ns.of_int63_ns_since_epoch in
   at_exit (fun () ->
       let t2 = Time_now.nanoseconds_since_unix_epoch () |> Time_ns.of_int63_ns_since_epoch in

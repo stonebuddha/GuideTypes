@@ -4,5 +4,5 @@
 (executable
   (name comminfer)
   (foreign_stubs (language cxx) (names torch_ext) (flags -std=c++14 -fPIC -I/Users/di/.opam/system/lib/libtorch/include))
-  (libraries core compiler-libs.common menhirLib torch ctypes.foreign)
+  (libraries core compiler-libs.common menhirLib torch ctypes.foreign pyml)
   (preprocess (pps ppx_jane)))

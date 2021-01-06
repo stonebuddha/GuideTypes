@@ -75,3 +75,42 @@ let create_system spec trace =
   ; sys_input_channel = spec.sys_spec_input_channel
   ; sys_output_channel = spec.sys_spec_output_channel
   }
+
+let rec py_tensor t =
+  let dims = Tensor.shape t in
+  let kind =
+    match Tensor.kind t with
+    | Torch_core.Kind.(T Half)
+    | Torch_core.Kind.(T Float)
+    | Torch_core.Kind.(T Double) -> `Float
+    | Torch_core.Kind.(T Uint8)
+    | Torch_core.Kind.(T Int8)
+    | Torch_core.Kind.(T Int16)
+    | Torch_core.Kind.(T Int)
+    | Torch_core.Kind.(T Int64) -> `Int
+    | Torch_core.Kind.(T Bool) -> `Bool
+    | _ -> assert false
+  in
+  match dims with
+  | [] ->
+    begin
+      match kind with
+      | `Float -> Py.Float.of_float (Tensor.float_value t)
+      | `Int -> Py.Int.of_int (Tensor.int_value t)
+      | `Bool -> Py.Bool.of_bool (Tensor.bool_value t)
+    end
+  | _ ->
+    let ts = Tensor.to_list t in
+    Py.List.of_list_map py_tensor ts
+
+let py_event = function
+  | Ev_branch_left br
+  | Ev_branch_right br ->
+    Py.Tuple.of_pair (Py.String.of_string "B", Py.Bool.of_bool br)
+  | Ev_tensor_left t
+  | Ev_tensor_right t ->
+    let tobj = py_tensor t in
+    Py.Tuple.of_pair (Py.String.of_string "T", tobj)
+
+let py_trace tr =
+  Py.List.of_list_map py_event tr

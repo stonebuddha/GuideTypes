@@ -30,3 +30,7 @@ _opam/
 
 # IDE settings
 .vscode/
+
+# Benchmark configurations
+*.in
+*.out

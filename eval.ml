@@ -2,6 +2,7 @@ open Core
 open Ast_types
 open Value_types
 open Trace_types
+open Infer_types
 open Or_error.Let_syntax
 
 let stdlib_env = String.Map.of_alist_exn [
@@ -461,4 +462,29 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
   Format.printf "%a@." Trace_ops.print_trace events;
   Format.printf "log prob sum (model) = %a@." Trace_ops.print_tensor sys_model.subr_log_prob_sum;
   Format.printf "log prob sum (guide) = %a@." Trace_ops.print_tensor sys_guide.subr_log_prob_sum;
-  Ok ()
+  Ok (events, sys_model.subr_log_prob_sum, sys_guide.subr_log_prob_sum)
+
+let infer_system algo proc_defs func_defs system_spec =
+  (* TODO: Here I assume there is only one trace. In the future, I can implement batched inference. *)
+  let trace = List.hd_exn system_spec.sys_spec_input_traces in
+  match algo with
+  | Algo_importance { imp_nsamples } ->
+    let%bind samples = Or_error.try_with (fun () ->
+        List.init imp_nsamples ~f:(fun _ ->
+            interp_system proc_defs func_defs (Trace_ops.create_system system_spec trace)
+            |> Or_error.ok_exn))
+    in
+    let m = Py.Import.add_module "ocaml" in
+    Py.Module.set m "samples" (Py.List.of_list_map (fun (tr, lm, lg) ->
+        Py.Tuple.of_tuple3 (Trace_ops.py_trace tr, Trace_ops.py_tensor lm, Trace_ops.py_tensor lg)
+      ) samples);
+    Py.Module.set m "filename" (Py.String.of_string system_spec.sys_spec_output_filename);
+    ignore (Py.Run.eval ~start:Py.File "
+from ocaml import samples, filename
+import pickle
+f = open(filename, 'wb')
+pickle.dump(samples, f)
+f.close()" : Pytypes.pyobject);
+    Ok ()
+  | Algo_svi ->
+    failwith "todo"

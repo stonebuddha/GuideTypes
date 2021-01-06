@@ -84,6 +84,8 @@ let dirichlet concentration : Tensor.t t =
   end
 
 let beta concentration1 concentration0 : Tensor.t t =
+  let concentration1 = Tensor.to_type concentration1 ~type_:Torch_core.Kind.(T Float) in
+  let concentration0 = Tensor.to_type concentration0 ~type_:Torch_core.Kind.(T Float) in
   let _dirichlet = dirichlet (Tensor.stack [concentration1; concentration0] ~dim:(-1)) in
   object
     method sample () =
