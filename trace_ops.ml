@@ -57,8 +57,8 @@ let print_trace fmt tr =
   Format.fprintf fmt " ]"
 
 let create_system spec trace =
-  let (model_c, model_l, model_r) = spec.sys_spec_model in
-  let (guide_c, guide_l, guide_r) = spec.sys_spec_guide in
+  let (model_c, model_th, model_l, model_r) = spec.sys_spec_model in
+  let (guide_c, guide_th, guide_l, guide_r) = spec.sys_spec_guide in
   { sys_buffer = String.Map.of_alist_exn [spec.sys_spec_input_channel, Queue.of_list trace; spec.sys_spec_output_channel, Queue.create ()]
   ; sys_model = { subr_log_prob_sum = Tensor.f 0.
                 ; subr_env = String.Map.empty
@@ -74,7 +74,9 @@ let create_system spec trace =
                 }
   ; sys_input_channel = spec.sys_spec_input_channel
   ; sys_output_channel = spec.sys_spec_output_channel
-  }
+  },
+  model_th,
+  guide_th
 
 let rec py_tensor t =
   let dims = Tensor.shape t in

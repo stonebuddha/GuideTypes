@@ -423,9 +423,7 @@ let rec tycheck_exp ctxt exp =
   | E_stack mexps ->
     let mexp = Multi_internal mexps in
     let%bind (dims, pty) = tycheck_multilayer ~loc:exp.exp_loc (tycheck_exp ctxt) mexp in
-    if not (is_prim_numeric pty) then
-      Or_error.of_exn (Type_error ("non-numeric element type", exp.exp_loc))
-    else if List.length dims = 1 && (
+    if is_prim_numeric pty && List.length dims = 1 && (
         let prob = List.fold_result mexps
             ~init:0.0
             ~f:(fun acc mexp ->
@@ -935,15 +933,31 @@ let rec verify_sess_ty sty_ctxt sty =
     | Some _ -> Option.value_map sty0 ~default:(Ok ()) ~f:(verify_sess_ty sty_ctxt)
 
 let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
-  let (model, model_args) = script.inf_model in
-  let (guide, guide_args) = script.inf_guide in
+  let (model, model_theta, model_args) = script.inf_model in
+  let (guide, guide_theta, guide_args) = script.inf_guide in
   let (input_ch, input_file) = script.inf_input in
   let (output_ch, output_file) = script.inf_output in
 
-  let check_mcall ~loc mpsigv margs =
+  let check_mcall ~loc mpsigv margs mtheta =
     if List.length mpsigv.psigv_param_tys <> List.length margs then
       Or_error.of_exn (Type_error ("mismatched arity", loc))
+    else if List.length mpsigv.psigv_theta_tys <> List.length mtheta then
+      Or_error.of_exn (Type_error ("mismatched theta", loc))
     else
+      let%bind () = List.fold_result (List.zip_exn mpsigv.psigv_theta_tys mtheta)
+          ~init:()
+          ~f:(fun () ((_, tyv), exp_opt) ->
+              match exp_opt with
+              | Some exp ->
+                let%bind chk_tyv = tycheck_exp (prelude_ctxt, func_ctxt) exp in
+                if is_subtype chk_tyv tyv then
+                  Ok ()
+                else
+                  Or_error.of_exn (Type_error ("mismatched theta types", exp.exp_loc))
+              | None ->
+                Ok ()
+            )
+      in
       List.fold_result (List.zip_exn mpsigv.psigv_param_tys margs)
         ~init:()
         ~f:(fun () ((_, tyv), exp) ->
@@ -959,13 +973,13 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
     | Some psigv_model -> Ok psigv_model
     | None -> Or_error.of_exn (Type_error ("unknown procedure identifier", model.loc))
   in
-  let%bind () = check_mcall ~loc:model.loc psigv_model model_args in
+  let%bind () = check_mcall ~loc:model.loc psigv_model model_args model_theta in
   let%bind psigv_guide =
     match Map.find psig_ctxt guide.txt with
     | Some psigv_guide -> Ok psigv_guide
     | None -> Or_error.of_exn (Type_error ("unknown procedure identifier", guide.loc))
   in
-  let%bind () = check_mcall ~loc:guide.loc psigv_guide guide_args in
+  let%bind () = check_mcall ~loc:guide.loc psigv_guide guide_args guide_theta in
 
   let%bind lat_ch, lat_sty =
     if Option.is_some psigv_guide.psigv_sess_left then
@@ -1022,8 +1036,14 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
   in
 
   let system_spec =
-    { sys_spec_model = { cmd_desc = M_call (model, model_args); cmd_loc = model.loc }, Some lat_ch, Some obs_ch
-    ; sys_spec_guide = { cmd_desc = M_call (guide, guide_args); cmd_loc = guide.loc }, None, Some lat_ch
+    { sys_spec_model = { cmd_desc = M_call (model, model_args); cmd_loc = model.loc },
+                       List.map2_exn psigv_model.psigv_theta_tys model_theta ~f:(fun (name, tyv) exp_opt -> (name, tyv, exp_opt)),
+                       Some lat_ch,
+                       Some obs_ch
+    ; sys_spec_guide = { cmd_desc = M_call (guide, guide_args); cmd_loc = guide.loc },
+                       List.map2_exn psigv_guide.psigv_theta_tys guide_theta ~f:(fun (name, tyv) exp_opt -> (name, tyv, exp_opt)),
+                       None,
+                       Some lat_ch
     ; sys_spec_input_channel = obs_ch
     ; sys_spec_input_traces = List.map traces ~f:(fun trace -> trace.txt)
     ; sys_spec_output_channel = lat_ch

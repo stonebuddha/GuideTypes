@@ -5,6 +5,8 @@ open Trace_types
 open Infer_types
 open Or_error.Let_syntax
 
+exception Eval_error of string * Location.t
+
 let stdlib_env = String.Map.of_alist_exn [
     "T", Libtensor.stdlib;
     "D", Libdist.stdlib;
@@ -105,6 +107,7 @@ let rec interp_exp env exp =
   | E_stack mexps ->
     let mexp = Multi_internal mexps in
     let has_real = ref false in
+    let has_bool = ref false in
     let rec collect_values = function
       | Multi_leaf exp0 ->
         let%bind value0 = interp_exp env exp0 in
@@ -116,6 +119,7 @@ let rec interp_exp env exp =
               | Torch_core.Kind.(T Half)
               | Torch_core.Kind.(T Float)
               | Torch_core.Kind.(T Double) -> has_real := true
+              | Torch_core.Kind.(T Bool) -> has_bool := true
               | _ -> ()
             end
           | _ -> ()
@@ -140,7 +144,25 @@ let rec interp_exp env exp =
         n :: shape_of sub
     in
     let dims = shape_of mvalue in
-    if !has_real then
+    if !has_bool then
+      let arr = Bigarray.Genarray.create Bigarray.Int8_unsigned Bigarray.C_layout (Array.of_list dims) in
+      let rec assign_elems pos = function
+        | Multi_leaf value0 ->
+          begin
+            match value0 with
+            | Val_tensor t0 -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Bool.to_int (Tensor.bool_value t0)))
+            | _ -> bad_impl "interp_exp E_stack"
+          end
+        | Multi_internal subs ->
+          Or_error.try_with (fun () ->
+              List.iteri subs ~f:(fun i sub ->
+                  Or_error.ok_exn (assign_elems (i :: pos) sub)
+                )
+            )
+      in
+      let%bind () = assign_elems [] mvalue in
+      Ok (Val_tensor (Tensor.(to_type (of_bigarray arr) ~type_:Torch_core.Kind.(T Bool))))
+    else if !has_real then
       let arr = Bigarray.Genarray.create Bigarray.Float32 Bigarray.C_layout (Array.of_list dims) in
       let rec assign_elems pos = function
         | Multi_leaf value0 ->
@@ -414,8 +436,12 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
               )
           in
           let (proc_sig, proc_body) = Map.find_exn proc_defs ident.txt in
+          let theta_env =
+            List.fold_left proc_sig.psigv_theta_tys ~init:(!func_env)
+              ~f:(fun acc (name, _) -> Map.set acc ~key:name ~data:(Map.find_exn subr.subr_env name))
+          in
           let init_env =
-            List.fold2_exn proc_sig.psigv_param_tys values ~init:(!func_env)
+            List.fold2_exn proc_sig.psigv_param_tys values ~init:theta_env
               ~f:(fun acc (param, _) value -> Map.set acc ~key:param ~data:value)
           in
           begin
@@ -459,24 +485,67 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
   in
   let%bind () = loop () in
   let events = Queue.to_list qu_for_output in
-  Format.printf "%a@." Trace_ops.print_trace events;
-  Format.printf "log prob sum (model) = %a@." Trace_ops.print_tensor sys_model.subr_log_prob_sum;
-  Format.printf "log prob sum (guide) = %a@." Trace_ops.print_tensor sys_guide.subr_log_prob_sum;
   Ok (events, sys_model.subr_log_prob_sum, sys_guide.subr_log_prob_sum)
 
 let infer_system algo proc_defs func_defs system_spec =
   (* TODO: Here I assume there is only one trace. In the future, I can implement batched inference. *)
   let trace = List.hd_exn system_spec.sys_spec_input_traces in
+  let system, model_th, guide_th = Trace_ops.create_system system_spec trace in
+  let func_env = ref String.Map.empty in
+  func_env :=
+    String.Map.map func_defs
+      ~f:(fun (args, body) ->
+          let names, _ = List.unzip args in
+          Val_prim_func (
+            function
+            | Val_triv -> interp_exp (stdlib_env, !func_env) body
+            | Val_tuple values -> interp_exp (stdlib_env, List.fold2_exn names values ~init:!func_env ~f:(fun acc name value -> Map.set acc ~key:name ~data:value)) body
+            | value -> interp_exp (stdlib_env, Map.set !func_env ~key:(List.hd_exn names) ~data:value) body
+          )
+        );
+  let generate_value tyv exp_opt =
+    match exp_opt with
+    | Some exp -> interp_exp (stdlib_env, !func_env) exp
+    | None ->
+      match tyv with
+      | Btyv_tensor (pty, dims) ->
+        begin
+          match pty with
+          | Pty_real ->
+            Ok (Val_tensor (Tensor.randn dims))
+          | Pty_preal
+          | Pty_ureal ->
+            Ok (Val_tensor (Tensor.rand dims))
+          | _ -> Or_error.of_exn (Eval_error ("invalid theta initialization", Location.none))
+        end
+      | _ -> Or_error.of_exn (Eval_error ("invalid theta initialization", Location.none))
+  in
+  let%bind () = Or_error.try_with (fun () ->
+      system.sys_model.subr_env <- List.fold_left model_th ~init:system.sys_model.subr_env
+          ~f:(fun acc (name, tyv, exp_opt) ->
+              Map.set acc ~key:name ~data:(generate_value tyv exp_opt |> Or_error.ok_exn)
+            );
+      system.sys_guide.subr_env <- List.fold_left guide_th ~init:system.sys_guide.subr_env
+          ~f:(fun acc (name, tyv, exp_opt) ->
+              Map.set acc ~key:name ~data:(generate_value tyv exp_opt |> Or_error.ok_exn)
+            )
+    )
+  in
   match algo with
   | Algo_importance { imp_nsamples } ->
-    let%bind samples = Or_error.try_with (fun () ->
-        List.init imp_nsamples ~f:(fun _ ->
-            interp_system proc_defs func_defs (Trace_ops.create_system system_spec trace)
-            |> Or_error.ok_exn))
+    let%bind samples =
+      Tqdm.Tqdm.with_bar imp_nsamples ~f:(fun tqdm ->
+          Or_error.try_with (fun () ->
+              List.init imp_nsamples ~f:(fun i ->
+                  let () = Tqdm.Tqdm.update tqdm (imp_nsamples - i) in
+                  let (tr, lm, lg) = interp_system proc_defs func_defs system
+                                     |> Or_error.ok_exn
+                  in
+                  (tr, Tensor.(lm - lg)))))
     in
     let m = Py.Import.add_module "ocaml" in
-    Py.Module.set m "samples" (Py.List.of_list_map (fun (tr, lm, lg) ->
-        Py.Tuple.of_tuple3 (Trace_ops.py_trace tr, Trace_ops.py_tensor lm, Trace_ops.py_tensor lg)
+    Py.Module.set m "samples" (Py.List.of_list_map (fun (tr, lp) ->
+        Py.Tuple.of_pair (Trace_ops.py_trace tr, Trace_ops.py_tensor lp)
       ) samples);
     Py.Module.set m "filename" (Py.String.of_string system_spec.sys_spec_output_filename);
     ignore (Py.Run.eval ~start:Py.File "
@@ -486,5 +555,6 @@ f = open(filename, 'wb')
 pickle.dump(samples, f)
 f.close()" : Pytypes.pyobject);
     Ok ()
-  | Algo_svi ->
+
+  | Algo_svi _ ->
     failwith "todo"

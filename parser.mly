@@ -4,6 +4,7 @@ open Infer_types
 open Trace_types
 
 module Or_error = Core.Or_error
+module String = Core.String
 
 let mkloc = Location.mkloc
 
@@ -423,8 +424,20 @@ infer_algo:
     { Or_error.ok_exn (Infer_ops.construct_algo algo_name hyper_params) }
 
 infer_pcall:
-  | proc_name = mkloc(UIDENT); LPAREN; exps = separated_list(SEMI, exp); RPAREN
-    { (proc_name, exps) }
+  | proc_name = mkloc(UIDENT); theta = infer_theta; LPAREN; exps = separated_list(SEMI, exp); RPAREN
+    { (proc_name, theta, exps) }
+
+infer_theta:
+  |
+    { [] }
+  | LBRACKET; exp_opts = separated_list(SEMI, exp_or_underscore); RBRACKET
+    { exp_opts }
+
+exp_or_underscore:
+  | UNDERSCORE
+    { None }
+  | exp = exp
+    { Some exp }
 
 infer_file:
   | channel_name = mkloc(LIDENT); LESSMINUS; file_name = mkloc(STRV)
@@ -437,3 +450,5 @@ hyper_param:
     { Hp_float f }
   | s = mkloc(STRV)
     { Hp_string s }
+  | LBRACE; hyper_params = mkloc(list(terminated(separated_pair(LIDENT, COLON, hyper_param), SEMI))); RBRACE
+    { Hp_nested (mkloc (String.Map.of_alist_reduce ~f:(fun _ latest -> latest) hyper_params.txt) hyper_params.loc) }
