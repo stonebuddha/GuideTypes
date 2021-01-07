@@ -24,3 +24,5 @@ val poisson : Tensor.t -> Tensor.t t
 val dirichlet : Tensor.t -> Tensor.t t
 
 val multivariate_normal : Tensor.t -> Tensor.t -> Tensor.t t
+
+val lkj_cholesky : int -> Tensor.t -> Tensor.t t

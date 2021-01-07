@@ -5,10 +5,18 @@ type Observation
 
 proc Model() -> unit | lat : Latent | obs : Observation = {
   pi <- observe{lat}(D.dirich[3](tensor([| 1; 1; 1 |])));
-  lambda_0 <- { return T.eye[2]() };
-  lambda_1 <- observe{lat}(D.wishart[2](lambda_0; 3));
-  lambda_2 <- observe{lat}(D.wishart[2](lambda_0; 3));
-  lambda_3 <- observe{lat}(D.wishart[2](lambda_0; 3));
+  lambda_1 <- {
+    fact <- observe{lat}(D.lkj[2](1));
+    return T.mulmm[2; 2; 2](fact; T.tr[2; 2](fact))
+  };
+  lambda_2 <- {
+    fact <- observe{lat}(D.lkj[2](1));
+    return T.mulmm[2; 2; 2](fact; T.tr[2; 2](fact))
+  };
+  lambda_3 <- {
+    fact <- observe{lat}(D.lkj[2](1));
+    return T.mulmm[2; 2; 2](fact; T.tr[2; 2](fact))
+  };
   lambdas <- { return fn (i: nat[3]) ->
     if i = 0 then
       lambda_1

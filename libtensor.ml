@@ -57,6 +57,13 @@ let ft_inv = Ftyv_poly
        | _ -> None
     )
 
+let ft_tr = Ftyv_poly
+    (fun dims ->
+       match dims with
+       | [n; m] -> Some (Btyv_arrow (Btyv_tensor (Pty_real, [n; m]), Btyv_tensor (Pty_real, [m; n])))
+       | _ -> None
+    )
+
 let prelude = String.Map.of_alist_exn [
     "zeros", ft_zeros;
     "ones", ft_ones;
@@ -68,6 +75,7 @@ let prelude = String.Map.of_alist_exn [
     "exp", ft_exp;
     "eye", ft_eye;
     "inv", ft_inv;
+    "tr", ft_tr;
   ]
 
 (* Library functions *)
@@ -142,6 +150,16 @@ let pf_inv = Fval_poly
        | _ -> None
     )
 
+let pf_tr = Fval_poly
+    (fun dims ->
+       match dims with
+       | [_; _] -> Some (Val_prim_func (function
+           | Val_tensor t -> Ok (Val_tensor (Tensor.tr t))
+           | _ -> bad_impl "pf_tr"
+         ))
+       | _ -> None
+    )
+
 let stdlib = String.Map.of_alist_exn [
     "zeros", pf_zeros;
     "ones", pf_ones;
@@ -153,4 +171,5 @@ let stdlib = String.Map.of_alist_exn [
     "exp", pf_exp;
     "eye", pf_eye;
     "inv", pf_inv;
+    "tr", pf_tr;
   ]

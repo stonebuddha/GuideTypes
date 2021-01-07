@@ -116,10 +116,8 @@ let rec interp_exp env exp =
           | Val_tensor t0 ->
             begin
               match Tensor.kind t0 with
-              | T Half
-              | T Float
-              | T Double -> has_real := true
-              | T Bool -> has_bool := true
+              | `Float -> has_real := true
+              | `Bool -> has_bool := true
               | _ -> ()
             end
           | _ -> ()
@@ -171,14 +169,8 @@ let rec interp_exp env exp =
             | Val_tensor t0 ->
               begin
                 match Tensor.kind t0 with
-                | T Half
-                | T Float
-                | T Double -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Tensor.float_value t0))
-                | T Uint8
-                | T Int8
-                | T Int16
-                | T Int
-                | T Int64 -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int (Tensor.int_value t0)))
+                | `Float -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Tensor.float_value t0))
+                | `Int -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int (Tensor.int_value t0)))
                 | _ -> bad_impl "interp_exp E_stack"
               end
             | _ -> bad_impl "interp_exp E_stack"

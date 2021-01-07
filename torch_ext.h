@@ -18,6 +18,8 @@ typedef void *tensor;
 tensor at_bool_vec(bool *values, int value_len, int type);
 bool at_bool_value_at_indexes(tensor, int *indexes, int indexes_len);
 
+tensor at_dirichlet(tensor concentration);
+
 #ifdef __cplusplus
 };
 #endif

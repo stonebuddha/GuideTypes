@@ -57,9 +57,9 @@ let ft_dirich = Ftyv_poly (fun dims ->
     | _ -> None
   )
 
-let ft_wishart = Ftyv_poly (fun dims ->
+let ft_lkj = Ftyv_poly (fun dims ->
     match dims with
-    | [n] -> Some (Btyv_arrow (Btyv_product [Btyv_tensor (Pty_real, [n; n]); Btyv_tensor (Pty_preal, [])], Btyv_dist (Btyv_tensor (Pty_real, [n; n]))))
+    | [n] -> Some (Btyv_arrow (Btyv_tensor (Pty_preal, []), Btyv_dist (Btyv_tensor (Pty_real, [n; n]))))
     | _ -> None
   )
 
@@ -81,7 +81,7 @@ let prelude = String.Map.of_alist_exn [
     "geo", ft_geo;
     "pois", ft_pois;
     "dirich", ft_dirich;
-    "wishart", ft_wishart;
+    "lkj", ft_lkj;
     "mvn", ft_mvn;
   ]
 
@@ -172,6 +172,15 @@ let pf_mvn = Fval_poly (fun dims ->
     | _ -> None
   )
 
+let pf_lkj = Fval_poly (fun dims ->
+    match dims with
+    | [n] -> Some (Val_prim_func (function
+        | Val_tensor t -> Ok (Val_dist (Dist.lkj_cholesky n t))
+        | _ -> bad_impl "pf_lkj"
+      ))
+    | _ -> None
+  )
+
 let stdlib = String.Map.of_alist_exn [
     "ber", pf_ber;
     "unif", pf_unif;
@@ -184,5 +193,6 @@ let stdlib = String.Map.of_alist_exn [
     "geo", pf_geo;
     "pois", pf_pois;
     "dirich", pf_dirich;
+    "lkj", pf_lkj;
     "mvn", pf_mvn;
   ]

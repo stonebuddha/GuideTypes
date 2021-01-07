@@ -3,19 +3,7 @@ open Trace_types
 
 let print_tensor fmt t =
   let dims = Tensor.shape t in
-  let kind =
-    match Tensor.kind t with
-    | T Half
-    | T Float
-    | T Double -> `Float
-    | T Uint8
-    | T Int8
-    | T Int16
-    | T Int
-    | T Int64 -> `Int
-    | T Bool -> `Bool
-    | _ -> assert false
-  in
+  let kind = Tensor.(kind t) in
   let rec aux dims t =
     match dims with
     | [] ->
@@ -80,19 +68,7 @@ let create_system spec trace =
 
 let rec py_tensor t =
   let dims = Tensor.shape t in
-  let kind =
-    match Tensor.kind t with
-    | T Half
-    | T Float
-    | T Double -> `Float
-    | T Uint8
-    | T Int8
-    | T Int16
-    | T Int
-    | T Int64 -> `Int
-    | T Bool -> `Bool
-    | _ -> assert false
-  in
+  let kind = Tensor.kind t in
   match dims with
   | [] ->
     begin
