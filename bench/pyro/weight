@@ -18,11 +18,16 @@ proc Proposal() -> unit | . | lat : Latent = {
 }
 
 infer {
-  importance {
-    nsamples: 1000;
+  svi {
+    niters: 2500;
+    optim: {
+      algo: "sgd";
+      lr: 0.001;
+      momentum: 0.1;
+    };
   }; # algo
   Model(); # model
-  Proposal(); # guide
+  Guide[8.5; 1](); # guide
   obs <- "weight.in"; # input
   lat <- "weight.out"; # output
 }

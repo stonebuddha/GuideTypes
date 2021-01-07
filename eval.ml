@@ -7,6 +7,31 @@ open Or_error.Let_syntax
 
 exception Eval_error of string * Location.t
 
+type transform = {
+  call: Tensor.t -> Tensor.t;
+  inverse: Tensor.t -> Tensor.t;
+}
+
+let _clipped_sigmoid x =
+  Tensor.clamp (Tensor.sigmoid x) ~min:(Torch.Scalar.f Utils.float_tiny) ~max:(Torch.Scalar.f Float.(1. - Utils.float_eps))
+
+let transform_to = function
+  | `Real -> {
+      call = (fun t -> t);
+      inverse = (fun t -> t);
+    }
+  | `Positive -> {
+      call = (fun t -> Tensor.exp t);
+      inverse = (fun t -> Tensor.log t);
+    }
+  | `Unit_interval -> {
+      call = (fun t -> _clipped_sigmoid t);
+      inverse = (fun t ->
+          let y = Tensor.clamp t ~min:(Torch.Scalar.f Utils.float_tiny) ~max:(Torch.Scalar.f Float.(1. - Utils.float_eps)) in
+          Tensor.(log y - log1p (- y))
+        )
+    }
+
 let stdlib_env = String.Map.of_alist_exn [
     "T", Libtensor.stdlib;
     "D", Libdist.stdlib;
@@ -378,7 +403,7 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
                 | Ev_tensor_left t
                 | Ev_tensor_right t ->
                   begin
-                    subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + lit_dist#log_prob t);
+                    subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + sum (lit_dist#log_prob t));
                     subr.subr_cont <- (Either.second (Val_tensor t), cont);
                     Ok true
                   end
@@ -386,7 +411,7 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
               else
                 let sample = lit_dist#sample () in
                 begin
-                  subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + lit_dist#log_prob sample);
+                  subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + sum (lit_dist#log_prob sample));
                   subr.subr_cont <- (Either.second (Val_tensor sample), cont);
                   enqueue channel_name.txt
                     (if Poly.(Some channel_name.txt = subr.subr_channel_left) then Ev_tensor_right sample else Ev_tensor_left sample);
@@ -405,14 +430,14 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
                 | Some (Ev_tensor_left t) when Poly.(Some channel_name.txt = subr.subr_channel_left) ->
                   begin
                     ignore (Queue.dequeue qu : event option);
-                    subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + lit_dist#log_prob t);
+                    subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + sum (lit_dist#log_prob t));
                     subr.subr_cont <- (Either.second (Val_tensor t), cont);
                     Ok true
                   end
                 | Some (Ev_tensor_right t) when Poly.(Some channel_name.txt = subr.subr_channel_right) ->
                   begin
                     ignore (Queue.dequeue qu : event option);
-                    subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + lit_dist#log_prob t);
+                    subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + sum (lit_dist#log_prob t));
                     subr.subr_cont <- (Either.second (Val_tensor t), cont);
                     Ok true
                   end
@@ -482,7 +507,7 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
 let infer_system algo proc_defs func_defs system_spec =
   (* TODO: Here I assume there is only one trace. In the future, I can implement batched inference. *)
   let trace = List.hd_exn system_spec.sys_spec_input_traces in
-  let system, model_th, guide_th = Trace_ops.create_system system_spec trace in
+
   let func_env = ref String.Map.empty in
   func_env :=
     String.Map.map func_defs
@@ -495,34 +520,55 @@ let infer_system algo proc_defs func_defs system_spec =
             | value -> interp_exp (stdlib_env, Map.set !func_env ~key:(List.hd_exn names) ~data:value) body
           )
         );
-  let generate_value tyv exp_opt =
+
+  let unconstrained_theta = Torch.Var_store.create ~name:"theta" () in
+  let generate_tensor tyv exp_opt =
     match exp_opt with
-    | Some exp -> interp_exp (stdlib_env, !func_env) exp
+    | Some exp ->
+      let%bind value = interp_exp (stdlib_env, !func_env) exp in
+      begin
+        match value with
+        | Val_tensor t -> Ok t
+        | _ -> bad_impl "generate_vvalue"
+      end
     | None ->
       match tyv with
       | Btyv_tensor (pty, dims) ->
         begin
           match pty with
           | Pty_real ->
-            Ok (Val_tensor (Tensor.randn dims))
+            Ok (Tensor.randn dims)
           | Pty_preal
           | Pty_ureal ->
-            Ok (Val_tensor (Tensor.rand dims))
+            Ok (Tensor.rand dims)
           | _ -> Or_error.of_exn (Eval_error ("invalid theta initialization", Location.none))
         end
       | _ -> Or_error.of_exn (Eval_error ("invalid theta initialization", Location.none))
   in
-  let%bind () = Or_error.try_with (fun () ->
-      system.sys_model.subr_env <- List.fold_left model_th ~init:system.sys_model.subr_env
-          ~f:(fun acc (name, tyv, exp_opt) ->
-              Map.set acc ~key:name ~data:(generate_value tyv exp_opt |> Or_error.ok_exn)
-            );
-      system.sys_guide.subr_env <- List.fold_left guide_th ~init:system.sys_guide.subr_env
-          ~f:(fun acc (name, tyv, exp_opt) ->
-              Map.set acc ~key:name ~data:(generate_value tyv exp_opt |> Or_error.ok_exn)
-            )
-    )
+  let generate_value ?(requires_grad=false) store name tyv exp_opt =
+    if not requires_grad then
+      let%bind t = generate_tensor tyv exp_opt in
+      Ok (Val_tensor t)
+    else
+      let%bind transform =
+        match tyv with
+        | Btyv_tensor (Pty_real, _) -> Ok (transform_to `Real)
+        | Btyv_tensor (Pty_preal, _) -> Ok (transform_to `Positive)
+        | Btyv_tensor (Pty_ureal, _) -> Ok (transform_to `Unit_interval)
+        | _ -> Or_error.of_exn (Eval_error ("non-contiguous theta", Location.none))
+      in
+      let%bind t_un =
+        match List.Assoc.find (Torch.Var_store.all_vars store) ~equal:String.equal name with
+        | None ->
+          let%bind t = generate_tensor tyv exp_opt in
+          let t_un = Tensor.no_grad (fun () -> transform.inverse (Tensor.to_type t ~type_:(T Float))) in
+          let t_un = Torch.Var_store.new_var ~trainable:true store ~name ~shape:(Tensor.shape t_un) ~init:(Torch.Var_store.Init.Copy t_un) in
+          Ok t_un
+        | Some t_un -> Ok t_un
+      in
+      Ok (Val_tensor (transform.call t_un))
   in
+
   match algo with
   | Algo_importance { imp_nsamples } ->
     let%bind samples =
@@ -530,6 +576,17 @@ let infer_system algo proc_defs func_defs system_spec =
           Or_error.try_with (fun () ->
               List.init imp_nsamples ~f:(fun i ->
                   let () = Tqdm.Tqdm.update tqdm (imp_nsamples - i) in
+                  let system, model_th, guide_th = Trace_ops.create_system system_spec trace in
+                  let () =
+                    system.sys_model.subr_env <- List.fold_left model_th ~init:system.sys_model.subr_env
+                        ~f:(fun acc (name, tyv, exp_opt) ->
+                            Map.set acc ~key:name ~data:(generate_value unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
+                          );
+                    system.sys_guide.subr_env <- List.fold_left guide_th ~init:system.sys_guide.subr_env
+                        ~f:(fun acc (name, tyv, exp_opt) ->
+                            Map.set acc ~key:name ~data:(generate_value unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
+                          )
+                  in
                   let (tr, lm, lg) = interp_system proc_defs func_defs system
                                      |> Or_error.ok_exn
                   in
@@ -548,5 +605,52 @@ pickle.dump(samples, f)
 f.close()" : Pytypes.pyobject);
     Ok ()
 
-  | Algo_svi _ ->
-    failwith "todo"
+  | Algo_svi { svi_niters; svi_optim } ->
+    let optim = ref None in
+    let%bind losses =
+      Tqdm.Tqdm.with_bar svi_niters ~f:(fun tqdm ->
+          List.fold_result (List.init svi_niters ~f:(fun i -> i + 1)) ~init:[] ~f:(fun acc i ->
+              let () = Tqdm.Tqdm.update tqdm i in
+              let system, model_th, guide_th = Trace_ops.create_system system_spec trace in
+              let%bind () = Or_error.try_with (fun () ->
+                  system.sys_model.subr_env <- List.fold_left model_th ~init:system.sys_model.subr_env
+                      ~f:(fun acc (name, tyv, exp_opt) ->
+                          Map.set acc ~key:name ~data:(generate_value ~requires_grad:true unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
+                        );
+                  system.sys_guide.subr_env <- List.fold_left guide_th ~init:system.sys_guide.subr_env
+                      ~f:(fun acc (name, tyv, exp_opt) ->
+                          Map.set acc ~key:name ~data:(generate_value ~requires_grad:true unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
+                        )
+                )
+              in
+              if Option.is_none !optim then
+                optim := Some
+                    begin
+                      match svi_optim with
+                      | `SGD options ->
+                        Torch.Optimizer.sgd ~momentum:options.sgd_momentum ~learning_rate:options.sgd_lr unconstrained_theta
+                      | `Adam options ->
+                        Torch.Optimizer.adam ~learning_rate:options.adam_lr ~beta1:(fst options.adam_betas) ~beta2:(snd options.adam_betas) unconstrained_theta
+                    end
+              ;
+              let%bind (_, lm, lg) = interp_system proc_defs func_defs system in
+              let elbo = Tensor.(lm - lg) in
+              let loss = Tensor.(- elbo) in
+              let () = Torch.Optimizer.zero_grad (Option.value_exn !optim) in
+              let () = Tensor.backward loss in
+              let () = Torch.Optimizer.step (Option.value_exn !optim) in
+              Ok (Tensor.float_value loss :: acc)
+            )
+        )
+    in
+    let losses = List.rev losses in
+    let m = Py.Import.add_module "ocaml" in
+    Py.Module.set m "losses" (Py.List.of_list_map (Py.Float.of_float) losses);
+    Py.Module.set m "filename" (Py.String.of_string system_spec.sys_spec_output_filename);
+    ignore (Py.Run.eval ~start:Py.File "
+from ocaml import losses, filename
+import pickle
+f = open(filename, 'wb')
+pickle.dump(losses, f)
+f.close()" : Pytypes.pyobject);
+    Ok ()
