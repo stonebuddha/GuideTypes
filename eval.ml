@@ -292,6 +292,11 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
     | (Either.Second _, Cont_stop) -> true
     | _ -> false
   in
+  let sample_from dist =
+    match dist#rsample with
+    | Some fn -> fn ()
+    | None -> dist#sample ()
+  in
   let step subr =
     match subr.subr_cont with
     | Either.Second _, Cont_stop -> Ok false
@@ -409,7 +414,7 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
                   end
                 | _ -> bad_impl "step M_sample_send"
               else
-                let sample = lit_dist#sample () in
+                let sample = sample_from lit_dist in
                 begin
                   subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + sum (lit_dist#log_prob sample));
                   subr.subr_cont <- (Either.second (Val_tensor sample), cont);

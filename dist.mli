@@ -1,4 +1,5 @@
 type 'a t = <
+  rsample: (unit -> 'a) option;
   sample: unit -> 'a;
   log_prob: 'a -> Tensor.t;
 >
