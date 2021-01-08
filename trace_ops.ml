@@ -66,29 +66,26 @@ let create_system spec trace =
   model_th,
   guide_th
 
-let rec py_tensor t =
-  let dims = Tensor.shape t in
+let py_tensor t =
   let kind = Tensor.kind t in
-  match dims with
-  | [] ->
-    begin
-      match kind with
-      | `Float -> Py.Float.of_float (Tensor.float_value t)
-      | `Int -> Py.Int.of_int (Tensor.int_value t)
-      | `Bool -> Py.Bool.of_bool (Tensor.bool_value t)
-    end
-  | _ ->
-    let ts = Tensor.to_list t in
-    Py.List.of_list_map py_tensor ts
+  let arr =
+    match kind with
+    | `Float -> Numpy.of_bigarray (Tensor.to_bigarray t ~kind:Bigarray.Float32)
+    | `Int -> Numpy.of_bigarray (Tensor.to_bigarray t ~kind:Bigarray.Int32)
+    | `Bool -> Numpy.of_bigarray (Tensor.to_bigarray t ~kind:Bigarray.Int8_unsigned)
+  in
+  let np = Py.import "numpy" in
+  let open Pyops in
+  np.&("array") [| arr |]
 
 let py_event = function
   | Ev_branch_left br
   | Ev_branch_right br ->
-    Py.Tuple.of_pair (Py.String.of_string "B", Py.Bool.of_bool br)
+    Py.Tuple.of_tuple1 (Py.Bool.of_bool br)
   | Ev_tensor_left t
   | Ev_tensor_right t ->
     let tobj = py_tensor t in
-    Py.Tuple.of_pair (Py.String.of_string "T", tobj)
+    tobj
 
 let py_trace tr =
   Py.List.of_list_map py_event tr

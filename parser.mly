@@ -1,7 +1,6 @@
 %{
 open Ast_types
 open Infer_types
-open Trace_types
 
 module Or_error = Core.Or_error
 module String = Core.String
@@ -42,7 +41,6 @@ let mkcmd ~loc cmd_desc = {
 %token BAR
 %token BOOL
 %token COLON
-%token COMMA
 %token DIST
 %token DOLLAR
 %token DOT
@@ -110,12 +108,6 @@ let mkcmd ~loc cmd_desc = {
 %start implementation
 %type <Ast_types.prog * Infer_types.script option> implementation
 
-%start batch_input
-%type <Trace_types.trace loc list> batch_input
-
-%start tensor_input
-%type <Tensor.t loc> tensor_input
-
 %%
 
 %inline mkloc(symb): symb { mkloc $1 (make_loc $sloc) }
@@ -127,45 +119,6 @@ let mkcmd ~loc cmd_desc = {
 %public implementation:
   | prog = list(toplevel); script = option(infer_script); EOF
     { prog, script }
-
-%public batch_input:
-  | traces = list(single_input); EOF
-    { traces }
-
-%public tensor_input:
-  | t = mkloc(lit_tensor); EOF
-    { t }
-
-single_input:
-  | mkloc(
-      LBRACKET; events = separated_list(COMMA, event); RBRACKET
-      { events }
-    )
-    { $1 }
-
-event:
-  | LPAREN; TRUE; RPAREN
-    { Ev_branch_right true }
-  | LPAREN; FALSE; RPAREN
-    { Ev_branch_right false }
-  | t = lit_tensor
-    { Ev_tensor_left t }
-
-lit_tensor:
-  | TRUE
-    { Tensor.mk_b true }
-  | FALSE
-    { Tensor.mk_b false }
-  | n = INTV
-    { Tensor.mk_i n }
-  | r = FLOATV
-    { Tensor.mk_f r }
-  | MINUS; n = INTV
-    { Tensor.mk_i (- n) }
-  | MINUS; r = FLOATV
-    { Tensor.mk_f (-. r) }
-  | LBRACKET; ts = separated_nonempty_list(COMMA, lit_tensor); RBRACKET
-    { Tensor.stack ts ~dim:0 }
 
 long_ident:
   | name = LIDENT

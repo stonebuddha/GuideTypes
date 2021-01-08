@@ -48,7 +48,6 @@ let keyword_table = Hashtbl.of_alist_exn (module String) [
   ("*", ASTERISK);
   ("|", BAR);
   (":", COLON);
-  (",", COMMA);
   ("$", DOLLAR);
   (".", DOT);
   ("=", EQUAL);
@@ -165,7 +164,7 @@ rule token = parse
     { comment lexbuf }
   | ">=" | "<>" | "<=" | "<-" | "->" | "-o" | "/\\"
     { Hashtbl.find_exn keyword_table (lexeme lexbuf) }
-  | ['&' '*' '|' ':' '$' '.' '=' '>' '{' '[' '<' '(' '-' '+' '}' ']' ')' ';' '/' ',']
+  | ['&' '*' '|' ':' '$' '.' '=' '>' '{' '[' '<' '(' '-' '+' '}' ']' ')' ';' '/']
     { Hashtbl.find_exn keyword_table (lexeme lexbuf) }
   | '"'
     { reset_string (); string lexbuf }

@@ -97,7 +97,7 @@ let cmd_route =
   ]
 
 let () =
-  Py.initialize ();
+  Py.initialize ~version:3 ();
   let t1 = Time_now.nanoseconds_since_unix_epoch () |> Time_ns.of_int63_ns_since_epoch in
   at_exit (fun () ->
       let t2 = Time_now.nanoseconds_since_unix_epoch () |> Time_ns.of_int63_ns_since_epoch in

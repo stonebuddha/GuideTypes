@@ -829,38 +829,68 @@ let rec subst_sty styv0 = function
   | Styv_echoice (styv1, styv2) -> Styv_echoice (subst_sty styv0 styv1, subst_sty styv0 styv2)
   | Styv_var (type_id, styv_inst) -> Styv_var (type_id, subst_sty styv0 styv_inst)
 
-let rec tycheck_trace ~loc sty_ctxt tr styv =
+let extract_tensor ~loc tyv py_obj =
+  match tyv with
+  | Btyv_tensor (Pty_bool, _) -> Ok (
+      let arr = Numpy.to_bigarray Bigarray.Float32 Bigarray.C_layout py_obj in
+      Tensor.of_bigarray arr
+    )
+  | Btyv_tensor (Pty_fnat _, _)
+  | Btyv_tensor (Pty_nat, _)
+  | Btyv_tensor (Pty_int, _) -> Ok (
+      let arr = Numpy.to_bigarray Bigarray.Float32 Bigarray.C_layout py_obj in
+      Tensor.of_bigarray arr
+    )
+  | Btyv_tensor (_, _) -> Ok (
+      let arr = Numpy.to_bigarray Bigarray.Float32 Bigarray.C_layout py_obj in
+      Tensor.of_bigarray arr
+    )
+  | _ -> Or_error.of_exn (Type_error ("non-tensor type", loc))
+
+let rec tycheck_py_trace ~loc sty_ctxt tr styv =
   match styv with
   | Styv_var (type_id, styv0) ->
     let styv_def = Hashtbl.find_exn sty_ctxt type_id |> Option.value_exn in
-    tycheck_trace ~loc sty_ctxt tr (subst_sty styv0 styv_def)
+    tycheck_py_trace ~loc sty_ctxt tr (subst_sty styv0 styv_def)
   | Styv_one ->
     if List.is_empty tr then
-      Ok ()
+      Ok []
     else
       Or_error.of_exn (Type_error ("invalid trace", loc))
-  | Styv_conj (_, styv0) ->
+  | Styv_conj (tyv, styv0) ->
     begin
       match tr with
-      | Ev_tensor_left _ :: tr' -> tycheck_trace ~loc sty_ctxt tr' styv0
+      | obj :: tr' ->
+        let%bind t = extract_tensor ~loc tyv obj in
+        let%bind rest = tycheck_py_trace ~loc sty_ctxt tr' styv0 in
+        Ok (Ev_tensor_left t :: rest)
       | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
     end
-  | Styv_imply (_, styv0) ->
+  | Styv_imply (tyv, styv0) ->
     begin
       match tr with
-      | Ev_tensor_right _ :: tr' -> tycheck_trace ~loc sty_ctxt tr' styv0
+      | obj :: tr' ->
+        let%bind t = extract_tensor ~loc tyv obj in
+        let%bind rest = tycheck_py_trace ~loc sty_ctxt tr' styv0 in
+        Ok (Ev_tensor_right t :: rest)
       | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
     end
   | Styv_ichoice (styv1, styv2) ->
     begin
       match tr with
-      | Ev_branch_left b :: tr' -> tycheck_trace ~loc sty_ctxt tr' (if b then styv1 else styv2)
+      | obj :: tr' ->
+        let b = Py.Tuple.to_tuple1 obj |> Py.Bool.to_bool in
+        let%bind rest = tycheck_py_trace ~loc sty_ctxt tr' (if b then styv1 else styv2) in
+        Ok (Ev_branch_left b :: rest)
       | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
     end
   | Styv_echoice (styv1, styv2) ->
     begin
       match tr with
-      | Ev_branch_right b :: tr' -> tycheck_trace ~loc sty_ctxt tr' (if b then styv1 else styv2)
+      | obj :: tr' ->
+        let b = Py.Tuple.to_tuple1 obj |> Py.Bool.to_bool in
+        let%bind rest = tycheck_py_trace ~loc sty_ctxt tr' (if b then styv1 else styv2) in
+        Ok (Ev_branch_right b :: rest)
       | _ -> Or_error.of_exn (Type_error ("invalid trace", loc))
     end
 
@@ -982,15 +1012,24 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
               match Sys.file_exists file_name.txt with
               | `No | `Unknown -> Or_error.of_exn (Type_error ("input file not found", file_name.loc))
               | `Yes ->
-                let parse_channel ch =
-                  let lexbuf = Lexing.from_channel ch in
-                  Location.init lexbuf input_file.txt;
-                  Location.input_name := input_file.txt;
-                  Location.input_lexbuf := Some lexbuf;
-                  Parse.single_tensor lexbuf
+                let t = ref None in
+                let callback arg =
+                  let res = extract_tensor ~loc:file_name.loc tyv arg.(0) |> Or_error.ok_exn in
+                  t := Some res;
+                  Py.none
                 in
-                let%bind t = In_channel.with_file file_name.txt ~f:parse_channel in
-                Ok ({ exp_desc = E_tensor t.txt; exp_loc = t.loc } :: acc)
+                let m = Py.Import.add_module "ocaml" in
+                Py.Module.set m "callback" (Py.Callable.of_function callback);
+                Py.Module.set m "filename" (Py.String.of_string file_name.txt);
+                ignore (Py.Run.eval ~start:Py.File "
+from ocaml import callback, filename
+import numpy as np
+f = open(filename, 'rb')
+a = np.load(f)
+f.close()
+callback(a)" : Pytypes.pyobject);
+                let t = Option.value_exn !t in
+                Ok ({ exp_desc = E_tensor t; exp_loc = file_name.loc } :: acc)
           )
   in
   let%bind psigv_model =
@@ -1040,25 +1079,29 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
       Ok ()
   in
 
-  let%bind traces =
+  let%bind py_trace =
     match Sys.file_exists input_file.txt with
     | `No | `Unknown -> Or_error.of_exn (Type_error ("input file not found", input_file.loc))
     | `Yes ->
-      let parse_channel ch =
-        let lexbuf = Lexing.from_channel ch in
-        Location.init lexbuf input_file.txt;
-        Location.input_name := input_file.txt;
-        Location.input_lexbuf := Some lexbuf;
-        Parse.batch_traces lexbuf
+      let lst = ref [] in
+      let callback arg =
+        lst := arg.(0) |> Py.List.to_list;
+        Py.none
       in
-      In_channel.with_file input_file.txt ~f:parse_channel
+      let m = Py.Import.add_module "ocaml" in
+      Py.Module.set m "callback" (Py.Callable.of_function callback);
+      Py.Module.set m "filename" (Py.String.of_string input_file.txt);
+      ignore (Py.Run.eval ~start:Py.File "
+from ocaml import callback, filename
+import pickle
+f = open(filename, 'rb')
+a = pickle.load(f)
+f.close()
+callback(a)" : Pytypes.pyobject);
+      Ok !lst
   in
 
-  let%bind () =
-    List.fold_result traces ~init:() ~f:(fun () trace ->
-        tycheck_trace ~loc:trace.loc sty_ctxt trace.txt (Styv_var (obs_sty, Styv_one))
-      )
-  in
+  let%bind trace = tycheck_py_trace ~loc:input_file.loc sty_ctxt py_trace (Styv_var (obs_sty, Styv_one)) in
 
   let system_spec =
     { sys_spec_model = { cmd_desc = M_call (model, model_args); cmd_loc = model.loc },
@@ -1070,7 +1113,7 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
                        None,
                        Some lat_ch
     ; sys_spec_input_channel = obs_ch
-    ; sys_spec_input_traces = List.map traces ~f:(fun trace -> trace.txt)
+    ; sys_spec_input_traces = trace
     ; sys_spec_output_channel = lat_ch
     ; sys_spec_output_filename = output_file.txt
     }

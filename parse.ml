@@ -44,10 +44,6 @@ let wrap_menhir entry lexbuf =
 
 let implementation = wrap_menhir Parser.Incremental.implementation
 
-let batch_traces = wrap_menhir Parser.Incremental.batch_input
-
-let single_tensor = wrap_menhir Parser.Incremental.tensor_input
-
 let () =
   Location.register_error_of_exn
     (function

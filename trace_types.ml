@@ -38,7 +38,7 @@ type system_spec = {
   sys_spec_model: cmd * (string * base_tyv * exp option) list * string option * string option;
   sys_spec_guide: cmd * (string * base_tyv * exp option) list * string option * string option;
   sys_spec_input_channel: string;
-  sys_spec_input_traces: trace list;
+  sys_spec_input_traces: trace;
   sys_spec_output_channel: string;
   sys_spec_output_filename: string;
 }

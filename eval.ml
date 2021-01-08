@@ -513,8 +513,7 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
   Ok (events, sys_model.subr_log_prob_sum, sys_guide.subr_log_prob_sum)
 
 let infer_system algo proc_defs func_defs system_spec =
-  (* TODO: Here I assume there is only one trace. In the future, I can implement batched inference. *)
-  let trace = List.hd_exn system_spec.sys_spec_input_traces in
+  let trace = system_spec.sys_spec_input_traces in
 
   let func_env = ref String.Map.empty in
   func_env :=
@@ -671,3 +670,10 @@ f = open(filename, 'wb')
 pickle.dump({ \"losses\": losses, \"theta\": theta }, f)
 f.close()" : Pytypes.pyobject);
     Ok ()
+
+let () =
+  Location.register_error_of_exn
+    (function
+      | Eval_error (msg, loc) -> Some (Location.errorf ~loc "%s" msg)
+      | _ -> None
+    )
