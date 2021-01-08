@@ -129,6 +129,9 @@ let rec interp_exp env exp =
     let%bind value1 = interp_exp env exp1 in
     interp_exp (update_env env ~key:name.txt ~data:value1) exp2
 
+  | E_tensor t ->
+    Ok (Val_tensor t)
+
   | E_stack mexps ->
     let mexp = Multi_internal mexps in
     let has_real = ref false in
@@ -527,6 +530,7 @@ let infer_system algo proc_defs func_defs system_spec =
         );
 
   let unconstrained_theta = Torch.Var_store.create ~name:"theta" () in
+  let constraints_theta = Hashtbl.create (module String) in
   let generate_tensor tyv exp_opt =
     match exp_opt with
     | Some exp ->
@@ -568,6 +572,7 @@ let infer_system algo proc_defs func_defs system_spec =
           let%bind t = generate_tensor tyv exp_opt in
           let t_un = Tensor.no_grad (fun () -> transform.inverse (Tensor.to_type t ~type_:(T Float))) in
           let t_un = Torch.Var_store.new_var ~trainable:true store ~name ~shape:(Tensor.shape t_un) ~init:(Torch.Var_store.Init.Copy t_un) in
+          Hashtbl.set constraints_theta ~key:name ~data:transform;
           Ok t_un
         | Some t_un -> Ok t_un
       in
@@ -649,13 +654,20 @@ f.close()" : Pytypes.pyobject);
         )
     in
     let losses = List.rev losses in
+    let theta = Torch.Var_store.all_vars unconstrained_theta
+                |> List.map ~f:(fun (name, t_un) ->
+                    let transform = Hashtbl.find_exn constraints_theta name in
+                    name, transform.call t_un
+                  )
+    in
     let m = Py.Import.add_module "ocaml" in
     Py.Module.set m "losses" (Py.List.of_list_map (Py.Float.of_float) losses);
+    Py.Module.set m "theta" (Py.Dict.of_bindings_map Py.String.of_string Trace_ops.py_tensor theta);
     Py.Module.set m "filename" (Py.String.of_string system_spec.sys_spec_output_filename);
     ignore (Py.Run.eval ~start:Py.File "
-from ocaml import losses, filename
+from ocaml import losses, theta, filename
 import pickle
 f = open(filename, 'wb')
-pickle.dump(losses, f)
+pickle.dump({ \"losses\": losses, \"theta\": theta }, f)
 f.close()" : Pytypes.pyobject);
     Ok ()

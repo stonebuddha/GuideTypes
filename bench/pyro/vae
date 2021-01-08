@@ -34,3 +34,29 @@ proc Guide
     return ());
   return ()
 }
+
+infer {
+  svi {
+    niters: 100;
+    optim: {
+      algo: "adam";
+      lr: 0.001;
+    };
+  }; # algo
+  Model[
+    T.zeros[400; 50]();
+    T.zeros[400]();
+    T.zeros[784; 400]();
+    T.zeros[784]()
+  ](); # model
+  Guide[
+    T.zeros[400; 784]();
+    T.zeros[400]();
+    T.zeros[50; 400]();
+    T.zeros[50]();
+    T.zeros[50; 400]();
+    T.zeros[50]()
+  ]("vae.in"); # guide
+  obs <- "vae.in"; # input
+  lat <- "vae.out"; # output
+}

@@ -1,6 +1,7 @@
 open Core
 open Ast_types
 open Value_types
+open Or_error.Let_syntax
 
 let bad_impl = Utils.bad_implementation
 
@@ -64,6 +65,13 @@ let ft_tr = Ftyv_poly
        | _ -> None
     )
 
+let ft_stack = Ftyv_poly
+    (fun dims ->
+       match dims with
+       | n :: dims' -> Some (Btyv_arrow (Btyv_product (List.init n ~f:(fun _ -> Btyv_tensor (Pty_real, dims'))), Btyv_tensor (Pty_real, dims)))
+       | _ -> None
+    )
+
 let prelude = String.Map.of_alist_exn [
     "zeros", ft_zeros;
     "ones", ft_ones;
@@ -76,6 +84,7 @@ let prelude = String.Map.of_alist_exn [
     "eye", ft_eye;
     "inv", ft_inv;
     "tr", ft_tr;
+    "stack", ft_stack;
   ]
 
 (* Library functions *)
@@ -160,6 +169,24 @@ let pf_tr = Fval_poly
        | _ -> None
     )
 
+let pf_stack = Fval_poly
+    (fun dims ->
+       match dims with
+       | [] -> None
+       | _ -> Some (Val_prim_func (function
+           | Val_tuple values ->
+             let%bind ts = Utils.fold_right_result values ~init:[] ~f:(
+                 fun value acc ->
+                   match value with
+                   | Val_tensor t -> Ok (t :: acc)
+                   | _ -> bad_impl "pf_stack"
+               )
+             in
+             Ok (Val_tensor (Tensor.stack ts ~dim:0))
+           | _ -> bad_impl "pf_stack"
+         ))
+    )
+
 let stdlib = String.Map.of_alist_exn [
     "zeros", pf_zeros;
     "ones", pf_ones;
@@ -172,4 +199,5 @@ let stdlib = String.Map.of_alist_exn [
     "eye", pf_eye;
     "inv", pf_inv;
     "tr", pf_tr;
+    "stack", pf_stack;
   ]

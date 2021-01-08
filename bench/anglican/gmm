@@ -4,7 +4,7 @@ type Latent
 type Observation
 
 proc Model() -> unit | lat : Latent | obs : Observation = {
-  pi <- observe{lat}(D.dirich[3](tensor([| 1; 1; 1 |])));
+  pi <- observe{lat}(D.dirich[3](tensor([ 1; 1; 1 ])));
   lambda_1 <- {
     fact <- observe{lat}(D.lkj[2](1));
     return T.mulmm[2; 2; 2](fact; T.tr[2; 2](fact))
@@ -17,29 +17,15 @@ proc Model() -> unit | lat : Latent | obs : Observation = {
     fact <- observe{lat}(D.lkj[2](1));
     return T.mulmm[2; 2; 2](fact; T.tr[2; 2](fact))
   };
-  lambdas <- { return fn (i: nat[3]) ->
-    if i = 0 then
-      lambda_1
-    else if i = 1 then
-      lambda_2
-    else
-      lambda_3
-  };
-  mu_0 <- { return tensor([| 0; 0 |]) };
+  lambdas <- { return T.stack[3; 2; 2](lambda_1; lambda_2; lambda_3) };
+  mu_0 <- { return tensor([ 0; 0 ]) };
   mu_1 <- observe{lat}(D.mvn[2](mu_0; T.inv[2](lambda_1)));
   mu_2 <- observe{lat}(D.mvn[2](mu_0; T.inv[2](lambda_2)));
   mu_3 <- observe{lat}(D.mvn[2](mu_0; T.inv[2](lambda_3)));
-  mus <- { return fn (i: nat[3]) ->
-    if i = 0 then
-      mu_1
-    else if i = 1 then
-      mu_2
-    else
-      mu_3
-  };
+  mus <- { return T.stack[3; 2](mu_1; mu_2; mu_3) };
   _ <- loop[100; ()] (fn (acc: unit) ->
     k <- observe{lat}(D.disc[3](pi));
-    _ <- sample{obs}(D.mvn[2](mus(k); T.inv[2](lambdas(k))));
+    _ <- sample{obs}(D.mvn[2](mus.[k]; T.inv[2](lambdas.[k])));
     return ());
   return ()
 }

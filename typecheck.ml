@@ -420,6 +420,16 @@ let rec tycheck_exp ctxt exp =
     let ctxt' = update_ctx ctxt ~key:name.txt ~data:tyv1 in
     tycheck_exp ctxt' exp2
 
+  | E_tensor t ->
+    let shape = Tensor.shape t in
+    let kind = Tensor.kind t in
+    begin
+      match kind with
+      | `Float -> Ok (Btyv_tensor (Pty_real, shape))
+      | `Int -> Ok (Btyv_tensor (Pty_int, shape))
+      | `Bool -> Ok (Btyv_tensor (Pty_bool, shape))
+    end
+
   | E_stack mexps ->
     let mexp = Multi_internal mexps in
     let%bind (dims, pty) = tycheck_multilayer ~loc:exp.exp_loc (tycheck_exp ctxt) mexp in
@@ -958,14 +968,29 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
                 Ok ()
             )
       in
-      List.fold_result (List.zip_exn mpsigv.psigv_param_tys margs)
-        ~init:()
-        ~f:(fun () ((_, tyv), exp) ->
-            let%bind chk_tyv = tycheck_exp (prelude_ctxt, func_ctxt) exp in
-            if is_subtype chk_tyv tyv then
-              Ok ()
-            else
-              Or_error.of_exn (Type_error ("mismatched argument types", exp.exp_loc))
+      Utils.fold_right_result (List.zip_exn mpsigv.psigv_param_tys margs)
+        ~init:[]
+        ~f:(fun ((_, tyv), exp) acc ->
+            match exp with
+            | Either.First exp ->
+              let%bind chk_tyv = tycheck_exp (prelude_ctxt, func_ctxt) exp in
+              if is_subtype chk_tyv tyv then
+                Ok (exp :: acc)
+              else
+                Or_error.of_exn (Type_error ("mismatched argument types", exp.exp_loc))
+            | Either.Second file_name ->
+              match Sys.file_exists file_name.txt with
+              | `No | `Unknown -> Or_error.of_exn (Type_error ("input file not found", file_name.loc))
+              | `Yes ->
+                let parse_channel ch =
+                  let lexbuf = Lexing.from_channel ch in
+                  Location.init lexbuf input_file.txt;
+                  Location.input_name := input_file.txt;
+                  Location.input_lexbuf := Some lexbuf;
+                  Parse.single_tensor lexbuf
+                in
+                let%bind t = In_channel.with_file file_name.txt ~f:parse_channel in
+                Ok ({ exp_desc = E_tensor t.txt; exp_loc = t.loc } :: acc)
           )
   in
   let%bind psigv_model =
@@ -973,13 +998,13 @@ let tycheck_script sty_ctxt psig_ctxt func_ctxt script =
     | Some psigv_model -> Ok psigv_model
     | None -> Or_error.of_exn (Type_error ("unknown procedure identifier", model.loc))
   in
-  let%bind () = check_mcall ~loc:model.loc psigv_model model_args model_theta in
+  let%bind model_args = check_mcall ~loc:model.loc psigv_model model_args model_theta in
   let%bind psigv_guide =
     match Map.find psig_ctxt guide.txt with
     | Some psigv_guide -> Ok psigv_guide
     | None -> Or_error.of_exn (Type_error ("unknown procedure identifier", guide.loc))
   in
-  let%bind () = check_mcall ~loc:guide.loc psigv_guide guide_args guide_theta in
+  let%bind guide_args = check_mcall ~loc:guide.loc psigv_guide guide_args guide_theta in
 
   let%bind lat_ch, lat_sty =
     if Option.is_some psigv_guide.psigv_sess_left then

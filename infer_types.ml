@@ -32,8 +32,8 @@ type algo =
 
 type script = {
   inf_algo: algo;
-  inf_model: procedure_id * exp option list * exp list;
-  inf_guide: procedure_id * exp option list * exp list;
+  inf_model: procedure_id * exp option list * (exp, string loc) Either.t list;
+  inf_guide: procedure_id * exp option list * (exp, string loc) Either.t list;
   inf_input: channel_id * string loc;
   inf_output: channel_id * string loc;
 }

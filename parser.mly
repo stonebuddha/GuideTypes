@@ -5,6 +5,7 @@ open Trace_types
 
 module Or_error = Core.Or_error
 module String = Core.String
+module Either = Core.Either
 
 let mkloc = Location.mkloc
 
@@ -39,9 +40,9 @@ let mkcmd ~loc cmd_desc = {
 %token AND
 %token ASTERISK
 %token BAR
-%token BARRBRACKET
 %token BOOL
 %token COLON
+%token COMMA
 %token DIST
 %token DOLLAR
 %token DOT
@@ -63,7 +64,6 @@ let mkcmd ~loc cmd_desc = {
 %token ITER
 %token LBRACE
 %token LBRACKET
-%token LBRACKETBAR
 %token LET
 %token LESS
 %token LESSGREATER
@@ -113,6 +113,9 @@ let mkcmd ~loc cmd_desc = {
 %start batch_input
 %type <Trace_types.trace loc list> batch_input
 
+%start tensor_input
+%type <Tensor.t loc> tensor_input
+
 %%
 
 %inline mkloc(symb): symb { mkloc $1 (make_loc $sloc) }
@@ -129,9 +132,13 @@ let mkcmd ~loc cmd_desc = {
   | traces = list(single_input); EOF
     { traces }
 
+%public tensor_input:
+  | t = mkloc(lit_tensor); EOF
+    { t }
+
 single_input:
   | mkloc(
-      LBRACKET; events = separated_list(SEMI, event); RBRACKET
+      LBRACKET; events = separated_list(COMMA, event); RBRACKET
       { events }
     )
     { $1 }
@@ -157,7 +164,7 @@ lit_tensor:
     { Tensor.mk_i (- n) }
   | MINUS; r = FLOATV
     { Tensor.mk_f (-. r) }
-  | LBRACKETBAR; ts = separated_nonempty_list(SEMI, lit_tensor); BARRBRACKET
+  | LBRACKET; ts = separated_nonempty_list(COMMA, lit_tensor); RBRACKET
     { Tensor.stack ts ~dim:0 }
 
 long_ident:
@@ -362,7 +369,7 @@ prim_exp:
       { E_real (-. r) }
     | LET; var_name = mkloc(LIDENT); EQUAL; exp1 = exp; IN; exp2 = exp; END
       { E_let (exp1, var_name, exp2) }
-    | TENSOR; LPAREN; LBRACKETBAR; mexps = separated_nonempty_list(SEMI, tensor); BARRBRACKET; RPAREN
+    | TENSOR; LPAREN; LBRACKET; mexps = separated_nonempty_list(SEMI, tensor); RBRACKET; RPAREN
       { E_stack mexps }
     | base_exp = prim_exp; DOT; LBRACKET; index_exps = separated_list(SEMI, exp); RBRACKET
       { E_index (base_exp, index_exps) }
@@ -376,7 +383,7 @@ prim_exp:
 tensor:
   | exp = exp
     { Multi_leaf exp }
-  | LBRACKETBAR; exps = separated_nonempty_list(SEMI, tensor); BARRBRACKET
+  | LBRACKET; exps = separated_nonempty_list(SEMI, tensor); RBRACKET
     { Multi_internal exps }
 
 cmd:
@@ -424,8 +431,14 @@ infer_algo:
     { Or_error.ok_exn (Infer_ops.construct_algo algo_name hyper_params) }
 
 infer_pcall:
-  | proc_name = mkloc(UIDENT); theta = infer_theta; LPAREN; exps = separated_list(SEMI, exp); RPAREN
+  | proc_name = mkloc(UIDENT); theta = infer_theta; LPAREN; exps = separated_list(SEMI, exp_or_file); RPAREN
     { (proc_name, theta, exps) }
+
+exp_or_file:
+  | exp = exp
+    { Either.first exp }
+  | file_name = mkloc(STRV)
+    { Either.second file_name }
 
 infer_theta:
   |

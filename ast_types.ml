@@ -86,6 +86,7 @@ and exp_desc =
   | E_abs of string loc * base_ty * exp
   | E_app of exp * exp
   | E_let of exp * string loc * exp
+  | E_tensor of Tensor.t
   | E_stack of exp multilayer list
   | E_index of exp * exp list
   | E_tuple of exp list
