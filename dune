@@ -5,4 +5,9 @@
   (name comminfer)
   (libraries core compiler-libs.common menhirLib ctypes ctypes.foreign torch torch.core pyml tqdm)
   (preprocess (pps ppx_jane))
-  (foreign_stubs (language cxx) (names torch_ext) (flags -std=c++14 -fPIC -I/Users/di/.opam/system/lib/libtorch/include)))
+  (foreign_stubs (language cxx) (names torch_ext) (flags -std=c++14 -fPIC (:include cxx_flags.sexp)))
+  (flags (:standard -w -7)))
+
+(rule
+  (targets cxx_flags.sexp)
+  (action (run ./config/discover.exe)))

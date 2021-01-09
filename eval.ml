@@ -305,9 +305,9 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
     | _ -> false
   in
   let sample_from dist =
-    match dist#rsample with
-    | Some fn -> fn ()
-    | None -> dist#sample ()
+    match dist#rsample () with
+    | Ok t -> t
+    | _ -> dist#sample ()
   in
   let step subr =
     match subr.subr_cont with

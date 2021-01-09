@@ -1,11 +1,12 @@
 open Core
 open Torch_ext
+open Or_error.Let_syntax
 
-type 'a t = <
-  rsample: (unit -> 'a) option;
-  sample: unit -> 'a;
-  log_prob: 'a -> Tensor.t;
->
+class virtual ['a] t = object (self)
+  method rsample () : 'a Or_error.t = Or_error.unimplemented "rsample"
+  method sample () : 'a = Or_error.ok_exn (Tensor.no_grad (fun () -> self#rsample ()))
+  method virtual log_prob : 'a -> Tensor.t
+end
 
 let clamp_probs probs =
   Tensor.clamp probs ~min:(Scalar.float Utils.float_eps) ~max:(Scalar.float Float.(1. - Utils.float_eps))
@@ -23,7 +24,7 @@ let bernoulli probs : Tensor.t t =
   let _event_shape = [] in
   let lazy logits = lazy (probs_to_logits ~is_binary:true probs) in
   object
-    method rsample = None
+    inherit [Tensor.t] t
 
     method sample () =
       Tensor.no_grad (fun () ->
@@ -44,13 +45,14 @@ let normal loc scale : Tensor.t t =
   let lazy log_scale = lazy (Tensor.log scale) in
   let lazy shift = lazy (Tensor.f Float.(log (sqrt (2. * pi)))) in
   object
-    method rsample = Some (fun () ->
-        let shape = Tensor.shape loc in
-        let zeros = Tensor.zeros shape in
-        let ones = Tensor.ones shape in
-        let eps = Tensor.normal2 ~mean:zeros ~std:ones in
-        Tensor.( + ) loc  (Tensor.( * ) eps scale)
-      )
+    inherit [Tensor.t] t
+
+    method rsample () =
+      let shape = Tensor.shape loc in
+      let zeros = Tensor.zeros shape in
+      let ones = Tensor.ones shape in
+      let eps = Tensor.normal2 ~mean:zeros ~std:ones in
+      Ok (Tensor.( + ) loc  (Tensor.( * ) eps scale))
 
     method sample () =
       Tensor.no_grad (fun () ->
@@ -66,17 +68,13 @@ let gamma concentration rate : Tensor.t t =
   let rate = Tensor.to_type rate ~type_:Float in
   let _batch_shape = Tensor.shape concentration in
   let _event_shape = [] in
-  object (self)
-    method rsample = Some (fun () ->
-        let value = Tensor.(_standard_gamma concentration / rate) in
-        let value_detached = Tensor.detach value in
-        Tensor.clamp_min_ value_detached ~min:(Scalar.float Utils.float_tiny)
-      )
+  object
+    inherit [Tensor.t] t
 
-    method sample () =
-      Tensor.no_grad (fun () ->
-          (Option.value_exn self#rsample) ()
-        )
+    method rsample () =
+      let value = Tensor.(_standard_gamma concentration / rate) in
+      let value_detached = Tensor.detach value in
+      Ok (Tensor.clamp_min_ value_detached ~min:(Scalar.float Utils.float_tiny))
 
     method log_prob t =
       Tensor.(concentration * log rate + (concentration - f 1.) * log t - rate * t - lgamma concentration)
@@ -85,15 +83,11 @@ let gamma concentration rate : Tensor.t t =
 let unif dims : Tensor.t t =
   let _batch_shape = dims in
   let _event_shape = [] in
-  object (self)
-    method rsample = Some (fun () ->
-        Tensor.rand ~kind:Float dims
-      )
+  object
+    inherit [Tensor.t] t
 
-    method sample () =
-      Tensor.no_grad (fun () ->
-          (Option.value_exn self#rsample) ()
-        )
+    method rsample () =
+      Ok (Tensor.rand ~kind:Float dims)
 
     method log_prob t =
       let lb = Tensor.(type_as (f 0. <= t) t) in
@@ -106,15 +100,11 @@ let dirichlet concentration : Tensor.t t =
   let _batch_shape, _event_shape =
     List.split_n (Tensor.shape concentration) (List.length (Tensor.shape concentration) - 1)
   in
-  object (self)
-    method rsample = Some (fun () ->
-        Tensor.dirichlet concentration
-      )
+  object
+    inherit [Tensor.t] t
 
-    method sample () =
-      Tensor.no_grad (fun () ->
-          (Option.value_exn self#rsample) ()
-        )
+    method rsample () =
+      Ok (Tensor.dirichlet concentration)
 
     method log_prob t =
       Tensor.(sum1 ~dim:[(-1)] (log t * (concentration - f 1.)) +
@@ -128,15 +118,12 @@ let beta concentration1 concentration0 : Tensor.t t =
   let _batch_shape = Tensor.shape concentration1 in
   let _event_shape = [] in
   let lazy _dirichlet = lazy (dirichlet (Tensor.stack [concentration1; concentration0] ~dim:(-1))) in
-  object (self)
-    method rsample = Some (fun () ->
-        Tensor.select ((Option.value_exn _dirichlet#rsample) ()) ~dim:(-1) ~index:0
-      )
+  object
+    inherit [Tensor.t] t
 
-    method sample () =
-      Tensor.no_grad (fun () ->
-          (Option.value_exn self#rsample) ()
-        )
+    method rsample () =
+      let%bind t = _dirichlet#rsample () in
+      Ok (Tensor.select t ~dim:(-1) ~index:0)
 
     method log_prob t =
       let v = Tensor.(stack [t; f 1. - t] ~dim:(-1)) in
@@ -153,7 +140,7 @@ let binomial total_count probs : Tensor.t t =
   let _event_shape = [] in
   let lazy logits = lazy (probs_to_logits ~is_binary:true probs) in
   object
-    method rsample = None
+    inherit [Tensor.t] t
 
     method sample () =
       Tensor.no_grad (fun () ->
@@ -182,7 +169,7 @@ let categorical probs : Tensor.t t =
   let _num_events = List.last_exn (Tensor.shape probs) in
   let lazy logits = lazy (probs_to_logits ~is_binary:false probs) in
   object
-    method rsample = None
+    inherit [Tensor.t] t
 
     method sample () =
       let probs_2d = Tensor.reshape probs ~shape:[(-1); _num_events] in
@@ -201,7 +188,7 @@ let geometric probs : Tensor.t t =
   let _batch_shape = Tensor.shape probs in
   let _event_shape = [] in
   object
-    method rsample = None
+    inherit [Tensor.t] t
 
     method sample () =
       Tensor.no_grad (fun () ->
@@ -222,7 +209,7 @@ let poisson rate : Tensor.t t =
   let _batch_shape = Tensor.shape rate in
   let _event_shape = [] in
   object
-    method rsample = None
+    inherit [Tensor.t] t
 
     method sample () =
       Tensor.no_grad (fun () ->
@@ -240,16 +227,12 @@ let multivariate_normal loc cov_matrix : Tensor.t t =
   let _batch_shape, _event_shape = List.split_n (Tensor.shape loc) (List.length (Tensor.shape loc) - 1) in
   let _unbroadcasted_scale_tril = Tensor.cholesky cov_matrix ~upper:false in
   let lazy _invM = lazy Tensor.(inverse (mm _unbroadcasted_scale_tril (tr _unbroadcasted_scale_tril))) in
-  object (self)
-    method rsample = Some (fun () ->
-        let eps = Tensor.(normal2 ~mean:(zeros (shape loc)) ~std:(ones (shape loc))) in
-        Tensor.(loc + squeeze1 ~dim:(-1) (mm _unbroadcasted_scale_tril (unsqueeze eps ~dim:(-1))))
-      )
+  object
+    inherit [Tensor.t] t
 
-    method sample () =
-      Tensor.no_grad (fun () ->
-          (Option.value_exn self#rsample) ()
-        )
+    method rsample () =
+      let eps = Tensor.(normal2 ~mean:(zeros (shape loc)) ~std:(ones (shape loc))) in
+      Ok Tensor.(loc + squeeze1 ~dim:(-1) (mm _unbroadcasted_scale_tril (unsqueeze eps ~dim:(-1))))
 
     method log_prob t =
       let diff = Tensor.(t - loc) in
@@ -274,7 +257,7 @@ let lkj_cholesky dim concentration : Tensor.t t =
   )
   in
   object
-    method rsample = None
+    inherit [Tensor.t] t
 
     method sample () =
       let y = _beta#sample () in

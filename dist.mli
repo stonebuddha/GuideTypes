@@ -1,7 +1,8 @@
+open Core
 open Torch_ext
 
 type 'a t = <
-  rsample: (unit -> 'a) option;
+  rsample: unit -> 'a Or_error.t;
   sample: unit -> 'a;
   log_prob: 'a -> Tensor.t;
 >
