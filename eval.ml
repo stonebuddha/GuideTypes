@@ -1,4 +1,5 @@
 open Core
+open Torch_ext
 open Ast_types
 open Value_types
 open Trace_types
@@ -13,7 +14,7 @@ type transform = {
 }
 
 let _clipped_sigmoid x =
-  Tensor.clamp (Tensor.sigmoid x) ~min:(Torch.Scalar.f Utils.float_tiny) ~max:(Torch.Scalar.f Float.(1. - Utils.float_eps))
+  Tensor.clamp (Tensor.sigmoid x) ~min:(Scalar.f Utils.float_tiny) ~max:(Scalar.f Float.(1. - Utils.float_eps))
 
 let transform_to = function
   | `Real -> {
@@ -27,7 +28,7 @@ let transform_to = function
   | `Unit_interval -> {
       call = (fun t -> _clipped_sigmoid t);
       inverse = (fun t ->
-          let y = Tensor.clamp t ~min:(Torch.Scalar.f Utils.float_tiny) ~max:(Torch.Scalar.f Float.(1. - Utils.float_eps)) in
+          let y = Tensor.clamp t ~min:(Scalar.f Utils.float_tiny) ~max:(Scalar.f Float.(1. - Utils.float_eps)) in
           Tensor.(log y - log1p (- y))
         )
     }
@@ -144,8 +145,8 @@ let rec interp_exp env exp =
           | Val_tensor t0 ->
             begin
               match Tensor.kind t0 with
-              | `Float -> has_real := true
-              | `Bool -> has_bool := true
+              | Float -> has_real := true
+              | Bool -> has_bool := true
               | _ -> ()
             end
           | _ -> ()
@@ -176,7 +177,8 @@ let rec interp_exp env exp =
         | Multi_leaf value0 ->
           begin
             match value0 with
-            | Val_tensor t0 -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Bool.to_int (Tensor.bool_value t0)))
+            | Val_tensor t0 ->
+              Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Bool.to_int (Tensor.bool_value t0)))
             | _ -> bad_impl "interp_exp E_stack"
           end
         | Multi_internal subs ->
@@ -187,7 +189,7 @@ let rec interp_exp env exp =
             )
       in
       let%bind () = assign_elems [] mvalue in
-      Ok (Val_tensor (Tensor.(to_type (of_bigarray arr) ~type_:(T Bool))))
+      Ok (Val_tensor (Tensor.(to_type (of_bigarray arr) ~type_:Bool)))
     else if !has_real then
       let arr = Bigarray.Genarray.create Bigarray.Float32 Bigarray.C_layout (Array.of_list dims) in
       let rec assign_elems pos = function
@@ -197,8 +199,8 @@ let rec interp_exp env exp =
             | Val_tensor t0 ->
               begin
                 match Tensor.kind t0 with
-                | `Float -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Tensor.float_value t0))
-                | `Int -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int (Tensor.int_value t0)))
+                | Float -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Tensor.float_value t0))
+                | Int -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Float.of_int (Tensor.int_value t0)))
                 | _ -> bad_impl "interp_exp E_stack"
               end
             | _ -> bad_impl "interp_exp E_stack"
@@ -218,7 +220,8 @@ let rec interp_exp env exp =
         | Multi_leaf value0 ->
           begin
             match value0 with
-            | Val_tensor t0 -> Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Int32.of_int_exn (Tensor.int_value t0)))
+            | Val_tensor t0 ->
+              Ok (Bigarray.Genarray.set arr (Array.of_list_rev pos) (Int32.of_int_exn (Tensor.int_value t0)))
             | _ -> bad_impl "interp_exp E_stack"
           end
         | Multi_internal subs ->
@@ -278,7 +281,13 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
           Val_prim_func (
             function
             | Val_triv -> interp_exp (stdlib_env, !func_env) body
-            | Val_tuple values -> interp_exp (stdlib_env, List.fold2_exn names values ~init:!func_env ~f:(fun acc name value -> Map.set acc ~key:name ~data:value)) body
+            | Val_tuple values ->
+              interp_exp
+                (stdlib_env,
+                 List.fold2_exn names values
+                   ~init:!func_env
+                   ~f:(fun acc name value -> Map.set acc ~key:name ~data:value))
+                body
             | value -> interp_exp (stdlib_env, Map.set !func_env ~key:(List.hd_exn names) ~data:value) body
           )
         );
@@ -350,7 +359,8 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
           end
         | M_bnd (cmd1, name_opt, cmd2) ->
           begin
-            subr.subr_cont <- (Either.first cmd1, Cont_bind (Option.map name_opt ~f:(fun name -> name.txt), cmd2, subr.subr_env, cont));
+            subr.subr_cont <- (Either.first cmd1,
+                               Cont_bind (Option.map name_opt ~f:(fun name -> name.txt), cmd2, subr.subr_env, cont));
             Ok true
           end
         | M_branch_self (exp0, cmd1, cmd2) ->
@@ -375,7 +385,10 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
               begin
                 subr.subr_cont <- (Either.first next_cmd, cont);
                 enqueue channel_name.txt
-                  (if Poly.(Some channel_name.txt = subr.subr_channel_left) then Ev_branch_right br else Ev_branch_left br);
+                  (if Poly.(Some channel_name.txt = subr.subr_channel_left) then
+                     Ev_branch_right br
+                   else
+                     Ev_branch_left br);
                 Ok true
               end
             | _ -> bad_impl "step M_branch_send"
@@ -422,7 +435,10 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
                   subr.subr_log_prob_sum <- Tensor.(subr.subr_log_prob_sum + sum (lit_dist#log_prob sample));
                   subr.subr_cont <- (Either.second (Val_tensor sample), cont);
                   enqueue channel_name.txt
-                    (if Poly.(Some channel_name.txt = subr.subr_channel_left) then Ev_tensor_right sample else Ev_tensor_left sample);
+                    (if Poly.(Some channel_name.txt = subr.subr_channel_left) then
+                       Ev_tensor_right sample
+                     else
+                       Ev_tensor_left sample);
                   Ok true
                 end
             | _ -> bad_impl "step M_sample_send"
@@ -488,7 +504,8 @@ let interp_system proc_defs func_defs { sys_buffer; sys_model; sys_guide; sys_in
             | Val_tensor iter_t ->
               let ts = Tensor.to_list iter_t in
               begin
-                subr.subr_cont <- (Either.second init_value, Cont_iter (ts, iter_name.txt, bind_name.txt, cmd, subr.subr_env, cont));
+                subr.subr_cont <- (Either.second init_value,
+                                   Cont_iter (ts, iter_name.txt, bind_name.txt, cmd, subr.subr_env, cont));
                 Ok true
               end
             | _ -> bad_impl "step M_iter"
@@ -523,12 +540,18 @@ let infer_system algo proc_defs func_defs system_spec =
           Val_prim_func (
             function
             | Val_triv -> interp_exp (stdlib_env, !func_env) body
-            | Val_tuple values -> interp_exp (stdlib_env, List.fold2_exn names values ~init:!func_env ~f:(fun acc name value -> Map.set acc ~key:name ~data:value)) body
+            | Val_tuple values ->
+              interp_exp
+                (stdlib_env,
+                 List.fold2_exn names values
+                   ~init:!func_env
+                   ~f:(fun acc name value -> Map.set acc ~key:name ~data:value))
+                body
             | value -> interp_exp (stdlib_env, Map.set !func_env ~key:(List.hd_exn names) ~data:value) body
           )
         );
 
-  let unconstrained_theta = Torch.Var_store.create ~name:"theta" () in
+  let unconstrained_theta = Var_store.create ~name:"theta" () in
   let constraints_theta = Hashtbl.create (module String) in
   let generate_tensor tyv exp_opt =
     match exp_opt with
@@ -566,11 +589,13 @@ let infer_system algo proc_defs func_defs system_spec =
         | _ -> Or_error.of_exn (Eval_error ("non-contiguous theta", Location.none))
       in
       let%bind t_un =
-        match List.Assoc.find (Torch.Var_store.all_vars store) ~equal:String.equal name with
+        match List.Assoc.find (Var_store.all_vars store) ~equal:String.equal name with
         | None ->
           let%bind t = generate_tensor tyv exp_opt in
-          let t_un = Tensor.no_grad (fun () -> transform.inverse (Tensor.to_type t ~type_:(T Float))) in
-          let t_un = Torch.Var_store.new_var ~trainable:true store ~name ~shape:(Tensor.shape t_un) ~init:(Torch.Var_store.Init.Copy t_un) in
+          let t_un = Tensor.no_grad (fun () -> transform.inverse (Tensor.to_type t ~type_:Float)) in
+          let t_un =
+            Var_store.new_var ~trainable:true store ~name ~shape:(Tensor.shape t_un) ~init:(Var_store.Init.Copy t_un)
+          in
           Hashtbl.set constraints_theta ~key:name ~data:transform;
           Ok t_un
         | Some t_un -> Ok t_un
@@ -589,11 +614,15 @@ let infer_system algo proc_defs func_defs system_spec =
                   let () =
                     system.sys_model.subr_env <- List.fold_left model_th ~init:system.sys_model.subr_env
                         ~f:(fun acc (name, tyv, exp_opt) ->
-                            Map.set acc ~key:name ~data:(generate_value unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
+                            Map.set acc
+                              ~key:name
+                              ~data:(generate_value unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
                           );
                     system.sys_guide.subr_env <- List.fold_left guide_th ~init:system.sys_guide.subr_env
                         ~f:(fun acc (name, tyv, exp_opt) ->
-                            Map.set acc ~key:name ~data:(generate_value unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
+                            Map.set acc
+                              ~key:name
+                              ~data:(generate_value unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
                           )
                   in
                   let (tr, lm, lg) = interp_system proc_defs func_defs system
@@ -624,11 +653,17 @@ f.close()" : Pytypes.pyobject);
               let%bind () = Or_error.try_with (fun () ->
                   system.sys_model.subr_env <- List.fold_left model_th ~init:system.sys_model.subr_env
                       ~f:(fun acc (name, tyv, exp_opt) ->
-                          Map.set acc ~key:name ~data:(generate_value ~requires_grad:true unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
+                          Map.set acc
+                            ~key:name
+                            ~data:(generate_value
+                                     ~requires_grad:true unconstrained_theta name tyv exp_opt
+                                   |> Or_error.ok_exn)
                         );
                   system.sys_guide.subr_env <- List.fold_left guide_th ~init:system.sys_guide.subr_env
                       ~f:(fun acc (name, tyv, exp_opt) ->
-                          Map.set acc ~key:name ~data:(generate_value ~requires_grad:true unconstrained_theta name tyv exp_opt |> Or_error.ok_exn)
+                          Map.set acc ~key:name ~data:(generate_value
+                                                         ~requires_grad:true unconstrained_theta name tyv exp_opt
+                                                       |> Or_error.ok_exn)
                         )
                 )
               in
@@ -637,23 +672,27 @@ f.close()" : Pytypes.pyobject);
                     begin
                       match svi_optim with
                       | `SGD options ->
-                        Torch.Optimizer.sgd ~momentum:options.sgd_momentum ~learning_rate:options.sgd_lr unconstrained_theta
+                        Optimizer.sgd ~momentum:options.sgd_momentum ~learning_rate:options.sgd_lr unconstrained_theta
                       | `Adam options ->
-                        Torch.Optimizer.adam ~learning_rate:options.adam_lr ~beta1:(fst options.adam_betas) ~beta2:(snd options.adam_betas) unconstrained_theta
+                        Optimizer.adam
+                          ~learning_rate:options.adam_lr
+                          ~beta1:(fst options.adam_betas)
+                          ~beta2:(snd options.adam_betas)
+                          unconstrained_theta
                     end
               ;
               let%bind (_, lm, lg) = interp_system proc_defs func_defs system in
               let elbo = Tensor.(lm - lg) in
               let loss = Tensor.(- elbo) in
-              let () = Torch.Optimizer.zero_grad (Option.value_exn !optim) in
+              let () = Optimizer.zero_grad (Option.value_exn !optim) in
               let () = Tensor.backward loss in
-              let () = Torch.Optimizer.step (Option.value_exn !optim) in
+              let () = Optimizer.step (Option.value_exn !optim) in
               Ok (Tensor.float_value loss :: acc)
             )
         )
     in
     let losses = List.rev losses in
-    let theta = Torch.Var_store.all_vars unconstrained_theta
+    let theta = Var_store.all_vars unconstrained_theta
                 |> List.map ~f:(fun (name, t_un) ->
                     let transform = Hashtbl.find_exn constraints_theta name in
                     name, transform.call t_un

@@ -1,1 +1,3 @@
-val implementation : Lexing.lexbuf -> (Ast_types.prog * Infer_types.script option) Core.Or_error.t
+open Core
+
+val implementation : Lexing.lexbuf -> (Ast_types.prog * Infer_types.script option) Or_error.t

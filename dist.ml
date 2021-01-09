@@ -1,4 +1,5 @@
 open Core
+open Torch_ext
 
 type 'a t = <
   rsample: (unit -> 'a) option;
@@ -7,7 +8,7 @@ type 'a t = <
 >
 
 let clamp_probs probs =
-  Tensor.clamp probs ~min:(Torch.Scalar.float Utils.float_eps) ~max:(Torch.Scalar.float Float.(1. - Utils.float_eps))
+  Tensor.clamp probs ~min:(Scalar.float Utils.float_eps) ~max:(Scalar.float Float.(1. - Utils.float_eps))
 
 let probs_to_logits ~is_binary probs =
   let ps_clamped = clamp_probs probs in
@@ -17,7 +18,7 @@ let probs_to_logits ~is_binary probs =
     Tensor.log ps_clamped
 
 let bernoulli probs : Tensor.t t =
-  let probs = Tensor.to_type probs ~type_:(T Float) in
+  let probs = Tensor.to_type probs ~type_:Float in
   let _batch_shape = Tensor.shape probs in
   let _event_shape = [] in
   let lazy logits = lazy (probs_to_logits ~is_binary:true probs) in
@@ -27,16 +28,16 @@ let bernoulli probs : Tensor.t t =
     method sample () =
       Tensor.no_grad (fun () ->
           let t = Tensor.bernoulli probs in
-          Tensor.to_type t ~type_:(T Bool)
+          Tensor.to_type t ~type_:Bool
         )
 
     method log_prob t =
-      Tensor.(- (binary_cross_entropy_with_logits logits ~target:t ~weight:None ~pos_weight:None ~reduction:Torch_core.Reduction.None))
+      Tensor.(- (Tensor.binary_cross_entropy_with_logits logits ~target:t))
   end
 
 let normal loc scale : Tensor.t t =
-  let loc = Tensor.to_type loc ~type_:(T Float) in
-  let scale = Tensor.to_type scale ~type_:(T Float) in
+  let loc = Tensor.to_type loc ~type_:Float in
+  let scale = Tensor.to_type scale ~type_:Float in
   let _batch_shape = Tensor.shape loc in
   let _event_shape = [] in
   let lazy variance_dbl = lazy (Tensor.scale (Tensor.square scale) 2.) in
@@ -61,15 +62,15 @@ let normal loc scale : Tensor.t t =
   end
 
 let gamma concentration rate : Tensor.t t =
-  let concentration = Tensor.to_type concentration ~type_:(T Float) in
-  let rate = Tensor.to_type rate ~type_:(T Float) in
+  let concentration = Tensor.to_type concentration ~type_:Float in
+  let rate = Tensor.to_type rate ~type_:Float in
   let _batch_shape = Tensor.shape concentration in
   let _event_shape = [] in
   object (self)
     method rsample = Some (fun () ->
         let value = Tensor.(_standard_gamma concentration / rate) in
         let value_detached = Tensor.detach value in
-        Tensor.clamp_min_ value_detached ~min:(Torch.Scalar.float Utils.float_tiny)
+        Tensor.clamp_min_ value_detached ~min:(Scalar.float Utils.float_tiny)
       )
 
     method sample () =
@@ -86,7 +87,7 @@ let unif dims : Tensor.t t =
   let _event_shape = [] in
   object (self)
     method rsample = Some (fun () ->
-        Tensor.rand ~kind:(T Float) dims
+        Tensor.rand ~kind:Float dims
       )
 
     method sample () =
@@ -101,8 +102,10 @@ let unif dims : Tensor.t t =
   end
 
 let dirichlet concentration : Tensor.t t =
-  let concentration = Tensor.to_type concentration ~type_:(T Float) in
-  let _batch_shape, _event_shape = List.split_n (Tensor.shape concentration) (List.length (Tensor.shape concentration) - 1) in
+  let concentration = Tensor.to_type concentration ~type_:Float in
+  let _batch_shape, _event_shape =
+    List.split_n (Tensor.shape concentration) (List.length (Tensor.shape concentration) - 1)
+  in
   object (self)
     method rsample = Some (fun () ->
         Tensor.dirichlet concentration
@@ -120,8 +123,8 @@ let dirichlet concentration : Tensor.t t =
   end
 
 let beta concentration1 concentration0 : Tensor.t t =
-  let concentration1 = Tensor.to_type concentration1 ~type_:(T Float) in
-  let concentration0 = Tensor.to_type concentration0 ~type_:(T Float) in
+  let concentration1 = Tensor.to_type concentration1 ~type_:Float in
+  let concentration0 = Tensor.to_type concentration0 ~type_:Float in
   let _batch_shape = Tensor.shape concentration1 in
   let _event_shape = [] in
   let lazy _dirichlet = lazy (dirichlet (Tensor.stack [concentration1; concentration0] ~dim:(-1))) in
@@ -141,11 +144,11 @@ let beta concentration1 concentration0 : Tensor.t t =
   end
 
 let _clamp_by_zero x =
-  Tensor.(clamp_min x ~min:(Torch.Scalar.f 0.) + x - clamp_max x ~max:(Torch.Scalar.f 0.) / f 2.)
+  Tensor.(clamp_min x ~min:(Scalar.f 0.) + x - clamp_max x ~max:(Scalar.f 0.) / f 2.)
 
 let binomial total_count probs : Tensor.t t =
   let total = Tensor.(ones ~scale:(Float.of_int total_count) (shape probs)) in
-  let probs = Tensor.to_type probs ~type_:(T Float) in
+  let probs = Tensor.to_type probs ~type_:Float in
   let _batch_shape = Tensor.shape probs in
   let _event_shape = [] in
   let lazy logits = lazy (probs_to_logits ~is_binary:true probs) in
@@ -155,7 +158,7 @@ let binomial total_count probs : Tensor.t t =
     method sample () =
       Tensor.no_grad (fun () ->
           Tensor.binomial ~count:total ~prob:probs
-          |> Tensor.to_type ~type_:(T Int)
+          |> Tensor.to_type ~type_:Int
         )
 
     method log_prob t =
@@ -172,7 +175,7 @@ let binomial total_count probs : Tensor.t t =
   end
 
 let categorical probs : Tensor.t t =
-  let probs = Tensor.to_type probs ~type_:(T Float) in
+  let probs = Tensor.to_type probs ~type_:Float in
   let probs = Tensor.(probs / sum1 probs ~dim:[(-1)] ~keepdim:true) in
   let _batch_shape = List.drop_last_exn (Tensor.shape probs) in
   let _event_shape = [] in
@@ -185,7 +188,7 @@ let categorical probs : Tensor.t t =
       let probs_2d = Tensor.reshape probs ~shape:[(-1); _num_events] in
       let samples_2d = Tensor.tr (Tensor.multinomial probs_2d ~num_samples:1 ~replacement:true) in
       Tensor.reshape samples_2d ~shape:_batch_shape
-      |> Tensor.to_type ~type_:(T Int)
+      |> Tensor.to_type ~type_:Int
 
     method log_prob t =
       let t_un = Tensor.unsqueeze t ~dim:(-1) in
@@ -194,7 +197,7 @@ let categorical probs : Tensor.t t =
   end
 
 let geometric probs : Tensor.t t =
-  let probs = Tensor.to_type probs ~type_:(T Float) in
+  let probs = Tensor.to_type probs ~type_:Float in
   let _batch_shape = Tensor.shape probs in
   let _event_shape = [] in
   object
@@ -203,9 +206,9 @@ let geometric probs : Tensor.t t =
     method sample () =
       Tensor.no_grad (fun () ->
           let u = Tensor.(rand (shape probs)) in
-          let u = Tensor.clamp_min u ~min:(Torch.Scalar.f Utils.float_tiny) in
+          let u = Tensor.clamp_min u ~min:(Scalar.f Utils.float_tiny) in
           Tensor.(floor (log u / log1p (- probs)))
-          |> Tensor.to_type ~type_:(T Int)
+          |> Tensor.to_type ~type_:Int
         )
 
     method log_prob t =
@@ -215,7 +218,7 @@ let geometric probs : Tensor.t t =
   end
 
 let poisson rate : Tensor.t t =
-  let rate = Tensor.to_type rate ~type_:(T Float) in
+  let rate = Tensor.to_type rate ~type_:Float in
   let _batch_shape = Tensor.shape rate in
   let _event_shape = [] in
   object
@@ -224,7 +227,7 @@ let poisson rate : Tensor.t t =
     method sample () =
       Tensor.no_grad (fun () ->
           Tensor.poisson rate
-          |> Tensor.to_type ~type_:(T Int)
+          |> Tensor.to_type ~type_:Int
         )
 
     method log_prob t =
@@ -232,8 +235,8 @@ let poisson rate : Tensor.t t =
   end
 
 let multivariate_normal loc cov_matrix : Tensor.t t =
-  let loc = Tensor.to_type loc ~type_:(T Float) in
-  let cov_matrix = Tensor.to_type cov_matrix ~type_:(T Float) in
+  let loc = Tensor.to_type loc ~type_:Float in
+  let cov_matrix = Tensor.to_type cov_matrix ~type_:Float in
   let _batch_shape, _event_shape = List.split_n (Tensor.shape loc) (List.length (Tensor.shape loc) - 1) in
   let _unbroadcasted_scale_tril = Tensor.cholesky cov_matrix ~upper:false in
   let lazy _invM = lazy Tensor.(inverse (mm _unbroadcasted_scale_tril (tr _unbroadcasted_scale_tril))) in
@@ -251,7 +254,9 @@ let multivariate_normal loc cov_matrix : Tensor.t t =
     method log_prob t =
       let diff = Tensor.(t - loc) in
       let m = Tensor.(dot (mv _invM ~vec:diff) diff) |> Tensor.float_value in
-      let half_log_det = Tensor.(log (diagonal _unbroadcasted_scale_tril ~offset:0 ~dim1:(-2) ~dim2:(-1)) |> sum1 ~dim:[(-1)]) in
+      let half_log_det =
+        Tensor.(log (diagonal _unbroadcasted_scale_tril ~offset:0 ~dim1:(-2) ~dim2:(-1)) |> sum1 ~dim:[(-1)])
+      in
       Tensor.(f Float.(-0.5 * (of_int (List.hd_exn _event_shape) * log (2. * pi) + m)) - half_log_det)
   end
 
@@ -261,7 +266,7 @@ let lkj_cholesky dim concentration : Tensor.t t =
   let _event_shape = [dim; dim] in
   let lazy _beta = lazy (
     let marginal_conc = Float.(concentration + 0.5 * of_int Int.(dim - 2)) in
-    let offset = Tensor.arange ~end_:(Torch.Scalar.i (dim - 1)) ~options:(T Float, Torch.Device.Cpu) in
+    let offset = Tensor.arange (Scalar.i (dim - 1)) in
     let offset = Tensor.cat [Tensor.float_vec [0.]; offset] ~dim:0 in
     let beta_conc1 = Tensor.(offset + f 0.5) in
     let beta_conc0 = Tensor.(unsqueeze ~dim:(-1) (f marginal_conc) - (f 0.5) * offset) in
@@ -274,20 +279,25 @@ let lkj_cholesky dim concentration : Tensor.t t =
     method sample () =
       let y = _beta#sample () in
       let u_normal = Tensor.randn _event_shape |> Tensor.tril ~diagonal:(-1) in
-      let u_hypersphere = Tensor.(u_normal / norm2 u_normal ~p:(frobenius_norm u_normal |> float_value |> Torch.Scalar.f) ~dim:[(-1)] ~keepdim:true) in
+      let u_hypersphere =
+        Tensor.(u_normal /
+                norm2 u_normal ~p:(frobenius_norm u_normal |> float_value |> Scalar.f) ~dim:[(-1)] ~keepdim:true)
+      in
       let () =
         let first_row = Tensor.get u_hypersphere 0 in
-        ignore (Tensor.fill_ first_row ~value:(Torch.Scalar.f 0.) : Tensor.t)
+        ignore (Tensor.fill_ first_row ~value:(Scalar.f 0.) : Tensor.t)
       in
       let w = Tensor.(sqrt y * u_hypersphere) in
-      let diag_elems = Tensor.clamp_min ~min:(Torch.Scalar.f Utils.float_tiny) Tensor.(f 1. - sum1 (square w) ~dim:[(-1)])
+      let diag_elems = Tensor.clamp_min ~min:(Scalar.f Utils.float_tiny) Tensor.(f 1. - sum1 (square w) ~dim:[(-1)])
                        |> Tensor.sqrt
       in
       Tensor.(w + diag_embed diag_elems ~offset:0 ~dim1:(-2) ~dim2:(-1))
 
     method log_prob t =
-      let diag_elems = Tensor.diagonal t ~offset:0 ~dim1:(-1) ~dim2:(-2) |> Tensor.to_list |> List.tl_exn |> Tensor.stack ~dim:0 in
-      let order = Tensor.arange1 ~start:(Torch.Scalar.i 2) ~end_:(Torch.Scalar.i (dim + 1)) ~options:(T Float, Torch.Device.Cpu) in
+      let diag_elems =
+        Tensor.diagonal t ~offset:0 ~dim1:(-1) ~dim2:(-2) |> Tensor.to_list |> List.tl_exn |> Tensor.stack ~dim:0
+      in
+      let order = Tensor.arange1 ~start:(Scalar.i 2) (Scalar.i (dim + 1)) in
       let order = Tensor.(unsqueeze ~dim:(-1) (f Float.(2. * (concentration - 1.))) + mk_i dim - order) in
       let unnormalized_log_pdf = Tensor.sum1 ~dim:[(-1)] Tensor.(order * log diag_elems) in
       let dm1 = dim - 1 in

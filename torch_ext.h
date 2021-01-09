@@ -4,7 +4,6 @@
 #ifdef __cplusplus
 extern "C" {
 typedef torch::Tensor *tensor;
-typedef torch::Scalar *scalar;
 #define PROTECT(x) \
   try { \
     x \

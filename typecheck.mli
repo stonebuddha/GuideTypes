@@ -1,1 +1,7 @@
-val tycheck_prog : Ast_types.prog * Infer_types.script option -> ((Ast_types.proc_sigv * Ast_types.cmd) Core.String.Map.t * ((string * Ast_types.base_tyv) list * Ast_types.exp) Core.String.Map.t * (Trace_types.system_spec * Infer_types.algo) option) Core.Or_error.t
+open Core
+
+val tycheck_prog :
+  Ast_types.prog * Infer_types.script option ->
+  ((Ast_types.proc_sigv * Ast_types.cmd) String.Map.t *
+   ((string * Ast_types.base_tyv) list * Ast_types.exp) String.Map.t *
+   (Trace_types.system_spec * Infer_types.algo) option) Or_error.t

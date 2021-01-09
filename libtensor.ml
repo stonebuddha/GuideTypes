@@ -1,4 +1,5 @@
 open Core
+open Torch_ext
 open Ast_types
 open Value_types
 open Or_error.Let_syntax
@@ -20,21 +21,27 @@ let ft_ones = ft_gen0 (Pty_fnat 2)
 let ft_mulmv = Ftyv_poly
     (fun dims ->
        match dims with
-       | [a; b] -> Some (Btyv_arrow (Btyv_product [Btyv_tensor (Pty_real, [a; b]); Btyv_tensor (Pty_real, [b])], Btyv_tensor (Pty_real, [a])))
+       | [a; b] -> Some (Btyv_arrow (
+           Btyv_product [Btyv_tensor (Pty_real, [a; b]); Btyv_tensor (Pty_real, [b])],
+           Btyv_tensor (Pty_real, [a])))
        | _ -> None
     )
 
 let ft_mulvm = Ftyv_poly
     (fun dims ->
        match dims with
-       | [a; b] -> Some (Btyv_arrow (Btyv_product [Btyv_tensor (Pty_real, [a]); Btyv_tensor (Pty_real, [a; b])], Btyv_tensor (Pty_real, [b])))
+       | [a; b] -> Some (Btyv_arrow (
+           Btyv_product [Btyv_tensor (Pty_real, [a]); Btyv_tensor (Pty_real, [a; b])],
+           Btyv_tensor (Pty_real, [b])))
        | _ -> None
     )
 
 let ft_mulmm = Ftyv_poly
     (fun dims ->
        match dims with
-       | [a; b; c] -> Some (Btyv_arrow (Btyv_product [Btyv_tensor (Pty_real, [a; b]); Btyv_tensor (Pty_real, [b; c])], Btyv_tensor (Pty_real, [a; c])))
+       | [a; b; c] -> Some (Btyv_arrow (
+           Btyv_product [Btyv_tensor (Pty_real, [a; b]); Btyv_tensor (Pty_real, [b; c])],
+           Btyv_tensor (Pty_real, [a; c])))
        | _ -> None
     )
 
@@ -68,7 +75,9 @@ let ft_tr = Ftyv_poly
 let ft_stack = Ftyv_poly
     (fun dims ->
        match dims with
-       | n :: dims' -> Some (Btyv_arrow (Btyv_product (List.init n ~f:(fun _ -> Btyv_tensor (Pty_real, dims'))), Btyv_tensor (Pty_real, dims)))
+       | n :: dims' -> Some (Btyv_arrow (
+           Btyv_product (List.init n ~f:(fun _ -> Btyv_tensor (Pty_real, dims'))),
+           Btyv_tensor (Pty_real, dims)))
        | _ -> None
     )
 

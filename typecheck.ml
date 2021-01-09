@@ -1,4 +1,5 @@
 open Core
+open Torch_ext
 open Ast_types
 open Infer_types
 open Trace_types
@@ -346,7 +347,8 @@ let rec tycheck_exp ctxt exp =
         begin
           match (gen_tyv dims) with
           | Some tyv -> Ok tyv
-          | None -> Or_error.of_exn (Type_error ("invalid instantiation of " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
+          | None -> Or_error.of_exn
+                      (Type_error ("invalid instantiation of " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
         end
       | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
     end
@@ -359,7 +361,8 @@ let rec tycheck_exp ctxt exp =
         begin
           match gen_tyv [] with
           | Some tyv -> Ok tyv
-          | None -> Or_error.of_exn (Type_error ("invalid instantiation of " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
+          | None -> Or_error.of_exn
+                      (Type_error ("invalid instantiation of " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
         end
       | _ -> Or_error.of_exn (Type_error ("undefined variable " ^ Ast_ops.string_of_long_ident ident.txt, exp.exp_loc))
     end
@@ -425,9 +428,9 @@ let rec tycheck_exp ctxt exp =
     let kind = Tensor.kind t in
     begin
       match kind with
-      | `Float -> Ok (Btyv_tensor (Pty_real, shape))
-      | `Int -> Ok (Btyv_tensor (Pty_int, shape))
-      | `Bool -> Ok (Btyv_tensor (Pty_bool, shape))
+      | Float -> Ok (Btyv_tensor (Pty_real, shape))
+      | Int -> Ok (Btyv_tensor (Pty_int, shape))
+      | Bool -> Ok (Btyv_tensor (Pty_bool, shape))
     end
 
   | E_stack mexps ->
@@ -527,13 +530,16 @@ let eval_proc_sig psig =
     { psigv_theta_tys = List.map psig.psig_theta_tys ~f:(fun (name, pty) -> (name.txt, eval_ty pty))
     ; psigv_param_tys = List.map psig.psig_param_tys ~f:(fun (name, ty) -> (name.txt, eval_ty ty))
     ; psigv_ret_ty = eval_ty psig.psig_ret_ty
-    ; psigv_sess_left = Option.map psig.psig_sess_left ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
-    ; psigv_sess_right = Option.map psig.psig_sess_right ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
+    ; psigv_sess_left = Option.map psig.psig_sess_left
+          ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
+    ; psigv_sess_right = Option.map psig.psig_sess_right
+          ~f:(fun (channel_name, type_name) -> (channel_name.txt, type_name.txt))
     }
   in
   match psigv.psigv_sess_left, psigv.psigv_sess_right with
   | Some (ch_left, _), Some (ch_right, _) when String.(ch_left = ch_right) ->
-    Or_error.of_exn (Type_error ("left and right channels coincide", (Option.value_exn psig.psig_sess_right |> fst).loc))
+    Or_error.of_exn
+      (Type_error ("left and right channels coincide", (Option.value_exn psig.psig_sess_right |> fst).loc))
   | _->
     Ok psigv
 
@@ -572,7 +578,8 @@ let collect_proc_defs_exn prog =
   String.Map.of_alist_exn (List.filter_map prog ~f:(fun top ->
       match top with
       | Top_sess _ -> None
-      | Top_proc (name, { proc_sig; proc_body; _ }) -> Some (name.txt, (Or_error.ok_exn (eval_proc_sig proc_sig), proc_body))
+      | Top_proc (name, { proc_sig; proc_body; _ }) ->
+        Some (name.txt, (Or_error.ok_exn (eval_proc_sig proc_sig), proc_body))
       | Top_func _ -> None
     ))
 
@@ -581,7 +588,8 @@ let collect_func_defs_exn prog =
       match top with
       | Top_sess _ -> None
       | Top_proc _ -> None
-      | Top_func (name, { func_param_tys; func_body; _ }) -> Some (name.txt, (List.map func_param_tys ~f:(fun (param, ty) -> (param.txt, eval_ty ty)), func_body))
+      | Top_func (name, { func_param_tys; func_body; _ }) ->
+        Some (name.txt, (List.map func_param_tys ~f:(fun (param, ty) -> (param.txt, eval_ty ty)), func_body))
     ))
 
 let tycheck_cmd psig_ctxt =
@@ -818,8 +826,10 @@ let tycheck_cmd psig_ctxt =
     let sess = String.Map.of_alist_exn (List.append (Option.to_list sess_left) (Option.to_list sess_right)) in
     let%bind sess' = backward ctxt sess cmd in
     Ok (tyv,
-        Option.map sess_left ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)),
-        Option.map sess_right ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)))
+        Option.map sess_left
+          ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)),
+        Option.map sess_right
+          ~f:(fun (channel_id, _) -> let (_, sty) = Map.find_exn sess' channel_id in (channel_id, sty)))
 
 let rec subst_sty styv0 = function
   | Styv_one -> styv0
@@ -910,8 +920,10 @@ let tycheck_func func_ctxt func =
 
 let tycheck_proc sty_ctxt psig_ctxt func_ctxt proc =
   let%bind psigv = eval_proc_sig proc.proc_sig in
-  let%bind ctxt = List.fold_result (List.append (List.map psigv.psigv_theta_tys ~f:(fun (name, tyv) -> (name, tyv))) psigv.psigv_param_tys)
-      ~init:func_ctxt ~f:(fun acc (name, tyv) ->
+  let%bind ctxt = List.fold_result
+      (List.append (List.map psigv.psigv_theta_tys ~f:(fun (name, tyv) -> (name, tyv))) psigv.psigv_param_tys)
+      ~init:func_ctxt
+      ~f:(fun acc (name, tyv) ->
           match Map.add acc ~key:name ~data:tyv with
           | `Ok acc' -> Ok acc'
           | `Duplicate -> Or_error.of_exn (Type_error ("duplicate identifier", proc.proc_loc))
@@ -1104,14 +1116,16 @@ callback(a)" : Pytypes.pyobject);
   let%bind trace = tycheck_py_trace ~loc:input_file.loc sty_ctxt py_trace (Styv_var (obs_sty, Styv_one)) in
 
   let system_spec =
-    { sys_spec_model = { cmd_desc = M_call (model, model_args); cmd_loc = model.loc },
-                       List.map2_exn psigv_model.psigv_theta_tys model_theta ~f:(fun (name, tyv) exp_opt -> (name, tyv, exp_opt)),
-                       Some lat_ch,
-                       Some obs_ch
-    ; sys_spec_guide = { cmd_desc = M_call (guide, guide_args); cmd_loc = guide.loc },
-                       List.map2_exn psigv_guide.psigv_theta_tys guide_theta ~f:(fun (name, tyv) exp_opt -> (name, tyv, exp_opt)),
-                       None,
-                       Some lat_ch
+    { sys_spec_model =
+        { cmd_desc = M_call (model, model_args); cmd_loc = model.loc },
+        List.map2_exn psigv_model.psigv_theta_tys model_theta ~f:(fun (name, tyv) exp_opt -> (name, tyv, exp_opt)),
+        Some lat_ch,
+        Some obs_ch
+    ; sys_spec_guide =
+        { cmd_desc = M_call (guide, guide_args); cmd_loc = guide.loc },
+        List.map2_exn psigv_guide.psigv_theta_tys guide_theta ~f:(fun (name, tyv) exp_opt -> (name, tyv, exp_opt)),
+        None,
+        Some lat_ch
     ; sys_spec_input_channel = obs_ch
     ; sys_spec_input_traces = trace
     ; sys_spec_output_channel = lat_ch

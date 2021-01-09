@@ -42,7 +42,8 @@ and print_base_tyv_prim fmt = function
       Format.fprintf fmt "%a" print_prim_ty pty
     else
       Format.fprintf fmt "(%a; [%a]) tensor" print_prim_ty pty
-        (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt "; ") (fun fmt n -> Format.fprintf fmt "%d" n)) dims
+        (Format.pp_print_list
+           ~pp_sep:(fun fmt () -> Format.fprintf fmt "; ") (fun fmt n -> Format.fprintf fmt "%d" n)) dims
   | Btyv_simplex n ->
     Format.fprintf fmt "simplex[%d]" n
   | Btyv_var name ->

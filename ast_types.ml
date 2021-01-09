@@ -1,4 +1,5 @@
 open Core
+open Torch_ext
 
 type 'a loc = 'a Location.loc = {
   txt: 'a;

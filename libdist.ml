@@ -65,7 +65,9 @@ let ft_lkj = Ftyv_poly (fun dims ->
 
 let ft_mvn = Ftyv_poly (fun dims ->
     match dims with
-    | [n] -> Some (Btyv_arrow (Btyv_product [Btyv_tensor (Pty_real, [n]); Btyv_tensor (Pty_real, [n; n])], Btyv_dist (Btyv_tensor (Pty_real, [n]))))
+    | [n] -> Some (Btyv_arrow (
+        Btyv_product [Btyv_tensor (Pty_real, [n]); Btyv_tensor (Pty_real, [n; n])],
+        Btyv_dist (Btyv_tensor (Pty_real, [n]))))
     | _ -> None
   )
 

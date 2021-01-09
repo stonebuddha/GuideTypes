@@ -1,3 +1,5 @@
+open Torch_ext
+
 type 'a t = <
   rsample: (unit -> 'a) option;
   sample: unit -> 'a;

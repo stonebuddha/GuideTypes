@@ -1,4 +1,5 @@
 open Core
+open Torch_ext
 open Ast_types
 open Value_types
 

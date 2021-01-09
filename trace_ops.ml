@@ -1,4 +1,5 @@
 open Core
+open Torch_ext
 open Trace_types
 
 let print_tensor fmt t =
@@ -9,13 +10,13 @@ let print_tensor fmt t =
     | [] ->
       begin
         match kind with
-        | `Float ->
+        | Float ->
           let f = Tensor.float_value t in
           Format.fprintf fmt "%g" f
-        | `Int ->
+        | Int ->
           let n = Tensor.int_value t in
           Format.fprintf fmt "%d" n
-        | `Bool ->
+        | Bool ->
           let b = Tensor.bool_value t in
           Format.fprintf fmt (if b then "true" else "false")
       end
@@ -47,7 +48,8 @@ let print_trace fmt tr =
 let create_system spec trace =
   let (model_c, model_th, model_l, model_r) = spec.sys_spec_model in
   let (guide_c, guide_th, guide_l, guide_r) = spec.sys_spec_guide in
-  { sys_buffer = String.Map.of_alist_exn [spec.sys_spec_input_channel, Queue.of_list trace; spec.sys_spec_output_channel, Queue.create ()]
+  { sys_buffer = String.Map.of_alist_exn
+        [spec.sys_spec_input_channel, Queue.of_list trace; spec.sys_spec_output_channel, Queue.create ()]
   ; sys_model = { subr_log_prob_sum = Tensor.f 0.
                 ; subr_env = String.Map.empty
                 ; subr_cont = Either.first model_c, Cont_stop
@@ -70,9 +72,9 @@ let py_tensor t =
   let kind = Tensor.kind t in
   let arr =
     match kind with
-    | `Float -> Numpy.of_bigarray (Tensor.to_bigarray t ~kind:Bigarray.Float32)
-    | `Int -> Numpy.of_bigarray (Tensor.to_bigarray t ~kind:Bigarray.Int32)
-    | `Bool -> Numpy.of_bigarray (Tensor.to_bigarray t ~kind:Bigarray.Int8_unsigned)
+    | Float -> Numpy.of_bigarray (Tensor.to_bigarray t ~kind:Bigarray.Float32)
+    | Int -> Numpy.of_bigarray (Tensor.to_bigarray t ~kind:Bigarray.Int32)
+    | Bool -> Numpy.of_bigarray (Tensor.to_bigarray t ~kind:Bigarray.Int8_unsigned)
   in
   let np = Py.import "numpy" in
   let open Pyops in
