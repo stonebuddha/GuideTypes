@@ -30,3 +30,6 @@ _opam/
 
 # IDE settings
 .vscode/
+
+# Python caches
+*.pyc

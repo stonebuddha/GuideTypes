@@ -35,7 +35,7 @@ let rec emit_aexp fmt = function
     Format.fprintf fmt "(%a %a %a)" emit_aexp exp1 emit_bop bop emit_aexp exp2
   | AE_dist dist -> Format.fprintf fmt "%a" emit_dist dist
   | AE_tensor exp0 -> Format.fprintf fmt "torch.tensor(%a)" emit_aexp exp0
-  | AE_stack exps -> Format.fprintf fmt "torch.stack((%a))"
+  | AE_stack exps -> Format.fprintf fmt "torch.stack([%a])"
                        (Format.pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ") emit_aexp) exps
   | AE_index (base_exp, index_exps) ->
     Format.fprintf fmt "%a%a.item()" emit_aexp base_exp

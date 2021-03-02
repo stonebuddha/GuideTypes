@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+
+import torch
+import pyro
+import pyro.distributions as dist
+from pyro.infer import EmpiricalMarginal, Importance
+import pyro.poutine as poutine
+from greenlet import greenlet
+import time
+
+
+def timeit(f, *args, **kwargs):
+    t1 = time.time_ns()
+    ret = f(*args, **kwargs)
+    t2 = time.time_ns()
+    return (ret, t2 - t1)
+
+
+def test(cond_model, guide):
+    importance = Importance(model=cond_model, guide=guide, num_samples=1000)
+    imp_ret = importance.run()
+
+
+identity_matrix2 = torch.eye(2)
+def invert(m):
+    return torch.inverse(m)
+def mvn2(mu):
+    def clo(cov):
+        return dist.MultivariateNormal(mu, make_it_cov2(cov))
+    return clo
+def dirichlet3(alpha):
+    return dist.Dirichlet(alpha)
+def wishart2(nu):
+    def clo(k):
+        return dist.LKJCorrCholesky(k-1, torch.tensor(2.0))
+    return clo
+def make_it_cov2(res):
+    res = torch.mm(res, res.t())
+    res.add_(torch.eye(2))
+    return res
+
+
+{{ GENERATED }}
+
+
+def model():
+    wm = Wrapper_for_Model()
+    return wm.run()
+
+
+def guide():
+    pm = Proposal_for_Model()
+    pm.run()
+
+
+data_generator = poutine.trace(pyro.condition(model, data={"lat_5": torch.tensor([10., 4.]), "lab_6": torch.tensor([-4., -4.]), "lab_7": torch.tensor([4., -10.])}))
+data_node = data_generator.get_trace().nodes
+data = { "obs_" + str(i + 1): data_node["obs_" + str(i + 1)]["value"] for i in range(100) }
+
+
+cond_model = pyro.condition(model, data=data)
+
+
+_, gi = timeit(test, cond_model, guide)
+print("generated code inference time: %fs" % (gi / 1e9))
+
+
+{{ HANDWRITTEN }}
+
+
+cond_hmodel = pyro.condition(hmodel, data={"z": torch.tensor(0.8)})
+
+
+_, gi = timeit(test, cond_hmodel, hguide)
+print("hand-written code inference time: %fs" % (gi / 1e9))

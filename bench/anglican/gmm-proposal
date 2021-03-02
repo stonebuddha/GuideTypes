@@ -11,7 +11,7 @@ proc Proposal() -> unit | . | lat : Latent = {
   _ <- sample{lat}(wishart2(identity_matrix2)(3));
   _ <- sample{lat}(wishart2(identity_matrix2)(3));
   _ <- sample{lat}(wishart2(identity_matrix2)(3));
-  mu_0 <- { return stack(tensor(0); tensor(0)) };
+  mu_0 <- { return stack(tensor(0.); tensor(0.)) };
   _ <- sample{lat}(mvn2(mu_0)(identity_matrix2));
   _ <- sample{lat}(mvn2(mu_0)(identity_matrix2));
   _ <- sample{lat}(mvn2(mu_0)(identity_matrix2));

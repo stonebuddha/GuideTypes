@@ -123,7 +123,7 @@ let cmd_compile_model =
   Command.basic ~summary:"compile (model)" (
     let open Command.Let_syntax in
     let%map_open filename = anon ("filename" %: Filename.arg_type)
-    and output = flag "-output" (required Filename.arg_type) ~doc:" output file"
+    and output = flag "-output" (optional Filename.arg_type) ~doc:" output file"
     in
     fun () ->
       let result =
@@ -131,7 +131,11 @@ let cmd_compile_model =
         let%bind prog = parse_file filename in
         let%bind () = typecheck prog in
         let iprog = anf prog in
-        let () = Out_channel.with_file output ~f:(fun ch -> compile_for_model ~ch iprog) in
+        let () =
+          match output with
+          | Some output -> Out_channel.with_file output ~f:(fun ch -> compile_for_model ~ch iprog)
+          | None -> compile_for_model ~ch:stderr iprog
+        in
         Ok iprog
       in
       report_result result
@@ -142,7 +146,7 @@ let cmd_compile_importance_proposal =
     let open Command.Let_syntax in
     let%map_open model_name = flag "-model" (required Filename.arg_type) ~doc:" model"
     and proposal_name = flag "-guide" (required Filename.arg_type) ~doc:" guide"
-    and output = flag "-output" (required Filename.arg_type) ~doc:" output file"
+    and output = flag "-output" (optional Filename.arg_type) ~doc:" output file"
     in
     fun () ->
       let result =
@@ -153,7 +157,11 @@ let cmd_compile_importance_proposal =
         let%bind () = typecheck proposal_prog in
         let model_iprog = anf model_prog in
         let proposal_iprog = anf proposal_prog in
-        let () = Out_channel.with_file output ~f:(fun ch -> compile_for_importance_proposal ~ch model_iprog proposal_iprog) in
+        let () =
+          match output with
+          | Some output -> Out_channel.with_file output ~f:(fun ch -> compile_for_importance_proposal ~ch model_iprog proposal_iprog)
+          | None -> compile_for_importance_proposal ~ch:stderr model_iprog proposal_iprog
+        in
         Ok (model_iprog, proposal_iprog)
       in
       report_result result
