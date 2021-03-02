@@ -55,7 +55,7 @@ def run_task(out, bench):
     ctime = look_for_runtime(str(ret1.stdout, "utf-8")) + \
         look_for_runtime(str(ret2.stdout, "utf-8"))
     out.write(str(ret1.stdout, "utf-8") + "\n\n" +
-              str(ret2.stdout, "utf-8") + "\n\n\n\n")
+              str(ret2.stdout, "utf-8") + "\n\n")
 
     hw_file = "%s_handwritten.py" % name
     hw_loc = "N/A"
@@ -86,6 +86,8 @@ def run_task(out, bench):
     msg = str(ret.stdout, "utf-8").splitlines()
     gi = msg[0].split(":")[-1].strip()
     hi = msg[1].split(":")[-1].strip()
+
+    out.write("GI: %s, HI: %s\n\n\n\n\n\n" % (gi, hi))
 
     return (name, infer, ctime, loc, gi, hw_loc, hi)
 
