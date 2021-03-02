@@ -1,7 +1,32 @@
 open Core
 
-let version = "0.1.0"
-let build_info = "CMU"
+module Build_info = Build_info.V1
+
+let version_to_string v =
+  Option.value_map ~f:Build_info.Version.to_string v ~default:"dev"
+
+let version = version_to_string (Build_info.version ())
+
+let build_info =
+  let libs =
+    List.map (Build_info.Statically_linked_libraries.to_list ())
+      ~f:(fun lib ->
+          ( Build_info.Statically_linked_library.name lib
+          , version_to_string
+              (Build_info.Statically_linked_library.version lib) ) )
+    |> List.sort ~compare:[%compare: string * string]
+  in
+  let max_length =
+    List.fold_left libs ~init:0 ~f:(fun n (name, _) ->
+        max n (String.length name) )
+  in
+  String.concat ~sep:"\n"
+    ( Printf.sprintf "%-*s %s" (max_length + 2) "ocaml:" Sys.ocaml_version
+      :: "statically linked libraries:"
+      :: List.map libs ~f:(fun (name, v) ->
+          Printf.sprintf "- %-*s %s" max_length name v )
+      @ ["version:"]
+    )
 
 let report_result result =
   Or_error.iter_error result ~f:(fun err ->
@@ -39,14 +64,14 @@ let anf prog =
       Anf.normalize_prog prog
     )
 
-let compile_for_model prog =
+let compile_for_model ~ch prog =
   Timer.wrap_duration "emission" (fun () ->
-      Compile.emit_prog_for_model Format.std_formatter prog
+      Compile.emit_prog_for_model (Format.formatter_of_out_channel ch) prog
     )
 
-let compile_for_importance_proposal model proposal =
+let compile_for_importance_proposal ~ch model proposal =
   Timer.wrap_duration "emission" (fun () ->
-      Compile.emit_prog_for_importance_proposal Format.std_formatter model proposal
+      Compile.emit_prog_for_importance_proposal (Format.formatter_of_out_channel ch) model proposal
     )
 
 let cmd_only_parse =
@@ -79,7 +104,7 @@ let cmd_type_check =
   )
 
 let cmd_normalize =
-  Command.basic ~summary:"normalize" (
+  Command.basic ~summary:"translate to a-normal-form" (
     let open Command.Let_syntax in
     let%map_open filename = anon ("filename" %: Filename.arg_type)
     in
@@ -98,6 +123,7 @@ let cmd_compile_model =
   Command.basic ~summary:"compile (model)" (
     let open Command.Let_syntax in
     let%map_open filename = anon ("filename" %: Filename.arg_type)
+    and output = flag "-output" (required Filename.arg_type) ~doc:" output file"
     in
     fun () ->
       let result =
@@ -105,17 +131,18 @@ let cmd_compile_model =
         let%bind prog = parse_file filename in
         let%bind () = typecheck prog in
         let iprog = anf prog in
-        let () = compile_for_model iprog in
+        let () = Out_channel.with_file output ~f:(fun ch -> compile_for_model ~ch iprog) in
         Ok iprog
       in
       report_result result
   )
 
 let cmd_compile_importance_proposal =
-  Command.basic ~summary:"compile (importance proposal)" (
+  Command.basic ~summary:"compile (guide)" (
     let open Command.Let_syntax in
     let%map_open model_name = flag "-model" (required Filename.arg_type) ~doc:" model"
-    and proposal_name = flag "-proposal" (required Filename.arg_type) ~doc:" proposal"
+    and proposal_name = flag "-guide" (required Filename.arg_type) ~doc:" guide"
+    and output = flag "-output" (required Filename.arg_type) ~doc:" output file"
     in
     fun () ->
       let result =
@@ -126,7 +153,7 @@ let cmd_compile_importance_proposal =
         let%bind () = typecheck proposal_prog in
         let model_iprog = anf model_prog in
         let proposal_iprog = anf proposal_prog in
-        let () = compile_for_importance_proposal model_iprog proposal_iprog in
+        let () = Out_channel.with_file output ~f:(fun ch -> compile_for_importance_proposal ~ch model_iprog proposal_iprog) in
         Ok (model_iprog, proposal_iprog)
       in
       report_result result
@@ -138,7 +165,7 @@ let cmd_route =
     ("type-check", cmd_type_check);
     ("normalize", cmd_normalize);
     ("compile-m", cmd_compile_model);
-    ("compile-is", cmd_compile_importance_proposal);
+    ("compile-g", cmd_compile_importance_proposal);
   ]
 
 let () =

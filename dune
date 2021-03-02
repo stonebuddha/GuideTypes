@@ -3,5 +3,6 @@
 
 (executable
   (name comminfer)
-  (libraries core compiler-libs.common menhirLib)
+  (public_name gtypes)
+  (libraries dune-build-info core compiler-libs.common menhirLib)
   (preprocess (pps ppx_jane)))
