@@ -10,9 +10,9 @@ import time
 
 
 def timeit(f, *args, **kwargs):
-    t1 = time.time_ns()
+    t1 = time.time()
     ret = f(*args, **kwargs)
-    t2 = time.time_ns()
+    t2 = time.time()
     return (ret, t2 - t1)
 
 
@@ -62,7 +62,7 @@ cond_model = pyro.condition(model, data=data)
 
 
 _, gi = timeit(test, cond_model, guide)
-print("generated code inference time: %fs" % (gi / 1e9))
+print("generated code inference time: %fs" % gi)
 
 
 {{ HANDWRITTEN }}
@@ -72,4 +72,4 @@ cond_hmodel = pyro.condition(hmodel, data={"z": torch.tensor(0.8)})
 
 
 _, gi = timeit(test, cond_hmodel, hguide)
-print("hand-written code inference time: %fs" % (gi / 1e9))
+print("hand-written code inference time: %fs" % gi)

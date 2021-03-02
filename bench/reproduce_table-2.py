@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import subprocess
-import time
 from tabulate import tabulate
 
 TOOL = "gtypes"
