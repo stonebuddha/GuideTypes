@@ -1,120 +1,132 @@
 Benchmark ex_1
 --------------------------------------------------------------------------------
-parsing time: 112us
+parsing time: 142us
 successfully inferred guide type operator Latent[$]
 	preal /\ &{ $ | ureal /\ $ }
 
 successfully inferred guide type operator Observation[$]
 	real /\ $
 
-typechecking time: 34us
-normalizing time: 5us
-emission time: 47us
+typechecking time: 48us
+normalizing time: 4us
+emission time: 46us
 
-total time: 240us
+total time: 298us
 
 
-parsing time: 104us
-parsing time: 57us
+parsing time: 108us
+parsing time: 52us
 successfully inferred guide type operator Latent[$]
 	preal /\ &{ $ | ureal /\ $ }
 
 successfully inferred guide type operator Observation[$]
 	real /\ $
 
-typechecking time: 34us
+typechecking time: 48us
 successfully inferred guide type operator Latent[$]
 	preal /\ &{ $ | ureal /\ $ }
 
-typechecking time: 7us
+typechecking time: 21us
 normalizing time: 5us
-normalizing time: 0s
-emission time: 93us
+normalizing time: 1us
+emission time: 91us
 
-total time: 351us
+total time: 374us
+
+
+GI: 4.683724s, HI: 4.358007s
+
 
 
 
 
 Benchmark branching
 --------------------------------------------------------------------------------
-parsing time: 115us
+parsing time: 109us
 successfully inferred guide type operator Latent[$]
 	nat /\ &{ $ | nat /\ $ }
 
 successfully inferred guide type operator Observation[$]
 	nat /\ $
 
-typechecking time: 48us
+typechecking time: 49us
 normalizing time: 5us
-emission time: 46us
+emission time: 44us
 
-total time: 256us
+total time: 249us
 
 
-parsing time: 108us
-parsing time: 59us
+parsing time: 107us
+parsing time: 58us
 successfully inferred guide type operator Latent[$]
 	nat /\ &{ $ | nat /\ $ }
 
 successfully inferred guide type operator Observation[$]
 	nat /\ $
 
-typechecking time: 35us
+typechecking time: 34us
 successfully inferred guide type operator Latent[$]
 	nat /\ &{ $ | nat /\ $ }
 
 typechecking time: 8us
-normalizing time: 5us
+normalizing time: 4us
 normalizing time: 1us
-emission time: 98us
+emission time: 95us
 
-total time: 372us
+total time: 356us
+
+
+GI: 7.417214s, HI: 6.568039s
+
 
 
 
 
 Benchmark gmm
 --------------------------------------------------------------------------------
-parsing time: 166us
+parsing time: 169us
 successfully inferred guide type operator Latent[$]
 	simplex[3] /\ (real; [2; 2]) tensor /\ (real; [2; 2]) tensor /\ (real; [2; 2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ $
 
 successfully inferred guide type operator Observation[$]
 	(real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ $
 
-typechecking time: 1.397ms
+typechecking time: 1.29ms
 normalizing time: 25us
-emission time: 196us
+emission time: 212us
 
-total time: 1.827ms
+total time: 1.741ms
 
 
-parsing time: 167us
-parsing time: 1.246ms
+parsing time: 165us
+parsing time: 1.089ms
 successfully inferred guide type operator Latent[$]
 	simplex[3] /\ (real; [2; 2]) tensor /\ (real; [2; 2]) tensor /\ (real; [2; 2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ $
 
 successfully inferred guide type operator Observation[$]
 	(real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ $
 
-typechecking time: 414us
+typechecking time: 371us
 successfully inferred guide type operator Latent[$]
 	simplex[3] /\ (real; [2; 2]) tensor /\ (real; [2; 2]) tensor /\ (real; [2; 2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ (real; [2]) tensor /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ nat[3] /\ $
 
-typechecking time: 666us
-normalizing time: 25us
-normalizing time: 5us
-emission time: 209us
+typechecking time: 663us
+normalizing time: 23us
+normalizing time: 4us
+emission time: 205us
 
-total time: 2.782ms
+total time: 2.572ms
+
+
+GI: 58.852328s, HI: 49.682471s
+
 
 
 
 
 Benchmark weight
 --------------------------------------------------------------------------------
-parsing time: 102us
+parsing time: 99us
 successfully inferred guide type operator Latent[$]
 	real /\ $
 
@@ -123,13 +135,13 @@ successfully inferred guide type operator Observation[$]
 
 typechecking time: 40us
 normalizing time: 3us
-emission time: 37us
+emission time: 35us
 
-total time: 222us
+total time: 220us
 
 
 parsing time: 95us
-parsing time: 56us
+parsing time: 57us
 successfully inferred guide type operator Latent[$]
 	real /\ $
 
@@ -140,12 +152,16 @@ typechecking time: 26us
 successfully inferred guide type operator Latent[$]
 	real /\ $
 
-typechecking time: 5us
+typechecking time: 6us
 normalizing time: 3us
 normalizing time: 0s
-emission time: 36us
+emission time: 50us
 
-total time: 268us
+total time: 286us
+
+
+GI: 2.187562s, HI: 2.135334s
+
 
 
 
@@ -159,31 +175,35 @@ successfully inferred guide type operator Latent[$]
 successfully inferred guide type operator Observation[$]
 	(bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ $
 
-typechecking time: 2.495ms
-normalizing time: 5us
+typechecking time: 2.542ms
+normalizing time: 4us
 emission time: 41us
 
-total time: 2.743ms
+total time: 2.789ms
 
 
-parsing time: 136us
-parsing time: 1.069ms
+parsing time: 139us
+parsing time: 1.407ms
 successfully inferred guide type operator Latent[$]
 	(real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ $
 
 successfully inferred guide type operator Observation[$]
 	(bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ (bool; [784]) tensor /\ $
 
-typechecking time: 1.49ms
+typechecking time: 1.544ms
 successfully inferred guide type operator Latent[$]
 	(real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ (real; [50]) tensor /\ $
 
-typechecking time: 594us
-normalizing time: 20us
-normalizing time: 3us
-emission time: 82us
+typechecking time: 596us
+normalizing time: 19us
+normalizing time: 2us
+emission time: 96us
 
-total time: 3.444ms
+total time: 3.857ms
+
+
+GI: 29.372208s, HI: 27.080521s
+
 
 
 
