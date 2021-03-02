@@ -93,7 +93,7 @@ Vagrant.configure("2") do |config|
       core \
       menhir
     opam clean
-    pip3 install --no-cache-dir pyro-ppl greenlet
+    pip3 install --no-cache-dir pyro-ppl greenlet tabulate
   SHELL
 
   # Fetch and build gtypes

@@ -717,7 +717,7 @@ let tycheck_proc sty_ctxt psig_ctxt ext_ctxt proc =
       | Some sty_def ->
         match sty_def with
         | None ->
-          Format.printf "successfully inferred guide type operator %s[$]@." type_id;
+          Format.printf "successfully inferred guide type operator %s[$]@.\t%a@.@." type_id Ast_ops.print_sess_tyv sty;
           Hashtbl.set sty_ctxt ~key:type_id ~data:(Some sty);
           false
         | Some sty_def ->
@@ -731,7 +731,7 @@ let tycheck_proc sty_ctxt psig_ctxt ext_ctxt proc =
       | Some sty_def ->
         match sty_def with
         | None ->
-          Format.printf "successfully inferred guide type operator %s[$]@." type_id;
+          Format.printf "successfully inferred guide type operator %s[$]@.\t%a@.@." type_id Ast_ops.print_sess_tyv sty;
           Hashtbl.set sty_ctxt ~key:type_id ~data:(Some sty);
           false
         | Some sty_def ->
