@@ -93,7 +93,7 @@ Vagrant.configure("2") do |config|
       core \
       menhir
     opam clean
-    pip3 install --no-cache-dir pyro-ppl greenlet tabulate torchvision
+    pip3 install --no-cache-dir pyro-ppl==1.5.2 greenlet tabulate torchvision
   SHELL
 
   # Fetch and build gtypes
