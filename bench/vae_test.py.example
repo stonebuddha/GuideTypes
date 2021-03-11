@@ -13,6 +13,9 @@ from greenlet import greenlet
 import time
 
 
+pyro.distributions.enable_validation(False)
+
+
 def timeit(f, *args, **kwargs):
     t1 = time.time()
     ret = f(*args, **kwargs)
