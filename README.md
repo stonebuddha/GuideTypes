@@ -23,7 +23,7 @@ $ opam install dune dune-build-info core menhir
 
 3) Installing [pyro](https://github.com/pyro-ppl/pyro) and [greenlet](https://github.com/python-greenlet/greenlet):
 ``` bash
-$ opam install pyro-ppl greenlet
+$ pip3 install pyro-ppl greenlet
 ```
 
 4) Compiling gtypes:
