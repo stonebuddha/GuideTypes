@@ -49,6 +49,26 @@ constructors for primitive types. Commands deal with *randomness*, introduced by
 sampling commands, as well as *communication* among coroutines. gtypes adapts a message-passing mechanism; in a system, there are some named *channels*, each of
 which connects two processes, and processes can send/receive a value on channels.
 
+Below is a list of probability distributions supported by gtypes:
+
+- `BER(prob)`: Bernoulli distributions
+
+- `UNIF`: The uniform distribution on the unit interval
+
+- `BETA(concentration1; concentration0)`: Beta distributions
+
+- `GAMMA(concentration; rate)`: Gamma distributions
+
+- `Normal(loc; scale)`: Normal distributions
+
+- `CAT(prob1; prob2; ...; probn)`: Categorical distributions
+
+- `BIN(total_count; prob)`: Binomial distributions
+
+- `GEO(prob)`: Geometric distributions
+
+- `POIS(rate)`: Poisson distributions
+
 Commands are organized in a *monadic* syntax:
 
 - `return E`: Evaluate the expression `E` and return its value.
@@ -138,3 +158,8 @@ to `file.py`
 
 - `compile-g -o file.py -m FILE1 -g FILE2`: Compile a guide program (for a specific
 model program) to a Pyro program and write it to `file.py`
+
+Example usage:
+``` bash
+$ gtypes compile-g -m bench/anglican/branching -g bench/anglican/branching-proposal -o guide.py
+```
